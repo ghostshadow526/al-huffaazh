@@ -29,6 +29,8 @@ import {
   ShieldCheck,
   LucideIcon,
   ClipboardList,
+  CalendarCheck,
+  GraduationCap as ResultIcon,
 } from 'lucide-react';
 import { useAuth as useFirebaseAuth } from '@/firebase';
 
@@ -42,6 +44,8 @@ const navItems: { href: string; label: string; icon: LucideIcon; roles: UserRole
     { href: "/students", label: "Students", icon: Users, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/manage-students", label: "Manage Students", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/students/add", label: "Add Student", icon: UserPlus, roles: ['teacher', 'branch_admin', 'super_admin'] },
+    { href: "/attendance", label: "Attendance", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
+    { href: "/results", label: "Results", icon: ResultIcon, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/payments", label: "Payments", icon: CreditCard, roles: ['super_admin', 'branch_admin', 'parent'] },
     { href: "/users", label: "Manage Users", icon: Users, roles: ['super_admin', 'branch_admin'] },
     { href: "/users/invite", label: "Create User", icon: UserPlus, roles: ['super_admin', 'branch_admin'] },

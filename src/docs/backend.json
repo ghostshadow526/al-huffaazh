@@ -234,6 +234,59 @@
         }
       },
       "required": ["email", "password", "studentId", "expiresAt"]
+    },
+    "Attendance": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Attendance",
+      "type": "object",
+      "description": "Represents a student's attendance record for a specific day.",
+      "properties": {
+        "studentId": { "type": "string", "description": "Reference to the Student." },
+        "branchId": { "type": "string", "description": "Denormalized branchId for querying." },
+        "date": { "type": "string", "format": "date", "description": "The date of the attendance record." },
+        "status": { "type": "string", "enum": ["present", "absent"], "description": "The attendance status." },
+        "markedBy": { "type": "string", "description": "Reference to the User (teacher) who marked the attendance." }
+      },
+      "required": ["studentId", "branchId", "date", "status", "markedBy"]
+    },
+    "Subject": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Subject",
+      "type": "object",
+      "description": "Represents a subject taught in the school.",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the subject (e.g., Mathematics, English, Chemistry)." },
+        "category": { "type": "string", "enum": ["primary", "secondary"], "description": "Category of the subject." }
+      },
+      "required": ["name", "category"]
+    },
+    "Term": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Term",
+      "type": "object",
+      "description": "Represents a school term (e.g., First Term 2024/2025).",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the term." },
+        "startDate": { "type": "string", "format": "date" },
+        "endDate": { "type": "string", "format": "date" }
+      },
+      "required": ["name"]
+    },
+    "Result": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Result",
+      "type": "object",
+      "description": "Represents a student's result for a specific subject in a term.",
+      "properties": {
+        "studentId": { "type": "string" },
+        "termId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "branchId": { "type": "string" },
+        "marks": { "type": "number", "minimum": 0, "maximum": 100 },
+        "recordedBy": { "type": "string", "description": "Reference to the User (teacher) who recorded the result." },
+        "recordedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "termId", "subjectId", "branchId", "marks", "recordedBy", "recordedAt"]
     }
   },
   "auth": {
@@ -286,6 +339,34 @@
             "$ref": "#/entities/ParentCredential"
           },
           "description": "Stores temporary parent credentials. Documents have a TTL and are automatically deleted."
+        }
+      },
+      {
+        "path": "/attendance/{attendanceId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/Attendance" },
+          "description": "Stores daily attendance records for all students."
+        }
+      },
+      {
+        "path": "/subjects/{subjectId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/Subject" },
+          "description": "Stores all available subjects."
+        }
+      },
+      {
+        "path": "/terms/{termId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/Term" },
+          "description": "Stores all school terms."
+        }
+      },
+      {
+        "path": "/results/{resultId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/Result" },
+          "description": "Stores student results for each subject and term."
         }
       }
     ]
