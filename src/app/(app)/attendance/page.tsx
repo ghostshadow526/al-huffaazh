@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, Suspense, useRef } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,19 +25,19 @@ export default function AttendancePage() {
   const [scannedStudentId, setScannedStudentId] = useState<string | null>(null);
   const [scannedStudentInfo, setScannedStudentInfo] = useState<Student | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
 
   useEffect(() => {
     // Check for camera permission when component mounts
-    const getCameraPermission = async () => {
+    const checkCameraPermission = async () => {
       if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
         try {
+          // We only check for permission, not actively use the stream here.
+          // The QrScanner component will handle the stream.
           const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          // If we get the stream, we have permission. Stop the tracks immediately.
+          stream.getTracks().forEach(track => track.stop());
           setHasCameraPermission(true);
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
         } catch (error) {
           console.error('Error accessing camera:', error);
           setHasCameraPermission(false);
@@ -46,19 +46,11 @@ export default function AttendancePage() {
         setHasCameraPermission(false);
       }
     };
-    getCameraPermission();
-    
-    // Clean up the stream when component unmounts
-    return () => {
-        if (videoRef.current && videoRef.current.srcObject) {
-            const stream = videoRef.current.srcObject as MediaStream;
-            stream.getTracks().forEach(track => track.stop());
-        }
-    }
+    checkCameraPermission();
   }, []);
 
   const handleScan = async (data: { text: string } | null) => {
-    if (data && !isProcessing) {
+    if (data && !isProcessing && !scannedStudentInfo) {
       setIsProcessing(true);
       const urlParts = data.text.split('/');
       const studentId = urlParts.pop(); // Get the last part of the URL
@@ -71,6 +63,10 @@ export default function AttendancePage() {
             if (studentDocSnap.exists()) {
                 const studentData = studentDocSnap.data() as Student;
                 setScannedStudentInfo(studentData);
+                 toast({
+                    title: 'Student Scanned',
+                    description: `Found ${studentData.fullName}. Please mark as present.`,
+                });
             } else {
                 toast({
                     variant: 'destructive',
@@ -78,7 +74,6 @@ export default function AttendancePage() {
                     description: `No student found with ID: ${studentId}`,
                 });
                 setScannedStudentInfo(null);
-                setIsProcessing(false);
             }
         } catch (error: any) {
             toast({
@@ -86,6 +81,7 @@ export default function AttendancePage() {
                 title: 'Error Fetching Student',
                 description: error.message,
             });
+        } finally {
             setIsProcessing(false);
         }
       } else {
@@ -101,11 +97,11 @@ export default function AttendancePage() {
 
   const handleError = (err: any) => {
     console.error(err);
-    toast({
-      variant: 'destructive',
-      title: 'QR Scan Error',
-      description: 'There was an error with the camera or QR scanner. Please ensure permissions are enabled.',
-    });
+    // Don't toast on every error, as it can be spammy.
+    // The alert for permission denied is a better UX.
+    if (err?.name === 'NotAllowedError') {
+        setHasCameraPermission(false);
+    }
   };
 
   const markAsPresent = async () => {
@@ -172,7 +168,7 @@ export default function AttendancePage() {
                 </CardHeader>
                 <CardContent className="flex flex-col items-center gap-4">
                   {hasCameraPermission === null && (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 p-8">
                       <Loader2 className="h-5 w-5 animate-spin" />
                       <span>Checking camera permissions...</span>
                     </div>
