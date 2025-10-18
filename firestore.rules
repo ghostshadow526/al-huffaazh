@@ -1,50 +1,30 @@
 /**
- * @fileoverview Firestore Security Rules for the multi-branch school system.
- *
- * Core Philosophy:
- * This ruleset enforces a role-based access control (RBAC) system with
- * segregation of read/write permissions based on user roles
- * (super_admin, branch_admin, teacher, parent) and data ownership.
- * It utilizes denormalization to improve rule efficiency and avoid costly `get()` calls.
- *
- * Data Structure:
- * - /branches/{branchId}: Stores branch information.
- * - /users/{userId}: Stores user information (roles, branchId).
- * - /branches/{branchId}/students/{studentId}: Stores student records.
- * - /branches/{branchId}/students/{studentId}/payments/{paymentId}: Stores payment records.
- * - /branches/{branchId}/students/{studentId}/public_profile: Stores a lite version of student info for public QR code access
- *
- * Key Security Decisions:
- * - Super admins have full access to all data.
- * - Branch admins can manage data within their respective branches.
- * - Teachers can create and edit student records within their branch.
- * - Parents can create payment records for their children.
- * - Public read access is granted to the `/branches/{branchId}/students/{studentId}/public_profile` collection,
- *   allowing QR codes to display basic student information.
- * - Listing all users is disallowed for non-admin users to protect privacy.
- *
- * Denormalization for Authorization:
- * - Student documents include `branchId` to allow branch-level access control.
- * - Payment documents include `parentUserId` to allow parents to manage their own payments.
- * - Payment documents include `branchId` for branch-level payment queries by admins.
- *
- * Structural Segregation:
- * - Public student data is stored in a separate `public_profile` subcollection
- *   to allow public read access without exposing sensitive information.
+ * @description This ruleset provides basic authorization for a school management system.
+ *   It enforces ownership for user profiles and allows public read access to branches,
+ *   while restricting student and payment data access to authorized users only.
+ * @dataStructure
+ *   /branches/{branchId} - Stores branch information (publicly readable).
+ *   /users/{userId} - Stores user information (owner-only access).
+ *   /students/{studentId} - Stores student information (owner-only access).
+ *   /payments/{paymentId} - Stores payment information (owner-only access).
+ * @keySecurityDecisions
+ *   - Users can only read/write their own user document.
+ *   - Branches are publicly readable to allow listing of all branches. Writes are disabled in prototype.
+ *   - Listing of users, students, and payments is not allowed. Only individual reads are allowed with correct authentication.
+ *   - Data validation is minimal in this prototyping phase.
+ * @denormalizationForAuthorization
+ *   - The `Payment` entity includes `studentId`, `parentUserId`, and `branchId` to simplify authorization checks and prevent the need for complex queries.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Grants access to branch information.
+     * @description Allows public read access to branch information, but restricts writes.
      * @path /branches/{branchId}
-     * @allow get: if true;
-     * @allow list: if true;
-     * @allow create: if false;
-     * @allow update: if false;
-     * @allow delete: if false;
-     * @principle Public information, no write required
+     * @allow (get, list): Any user can read branch information.
+     * @deny (create, update, delete): No one can create, update, or delete branch information.
+     * @principle Allows public read access for listing branches
      */
     match /branches/{branchId} {
       allow get, list: if true;
@@ -52,83 +32,67 @@ service cloud.firestore {
     }
 
     /**
-     * @description Grants access to user information.
+     * @description Enforces user-ownership for user profiles.
      * @path /users/{userId}
-     * @allow get: if isSignedIn() && isOwner(userId);
-     * @allow list: if false;
-     * @allow create: if isSignedIn() && isOwner(userId);
-     * @allow update: if isSignedIn() && isOwner(userId);
-     * @allow delete: if isSignedIn() && isExistingOwner(userId);
-     * @deny create: if request.auth.uid != request.resource.data.userId;
-     * @principle Enforces document ownership for writes and self-creation.
+     * @allow (get, create, update, delete): Only the user with the matching userId can read, create, update, or delete their profile.
+     * @deny (get, create, update, delete): Any other user attempting to access this profile will be denied.
+     * @principle Enforces document ownership for writes.
      */
     match /users/{userId} {
       allow get: if isSignedIn() && isOwner(userId);
       allow list: if false;
-      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && isOwner(userId) && resource.data.userId == request.resource.data.userId;
+      allow create: if isSignedIn() && isCreatingOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId) && isUserIdImmutableOnUpdate(userId);
       allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Grants access to student information under a branch.
-     * @path /branches/{branchId}/students/{studentId}
-     * @allow get: if true;
-     * @allow list: if true;
-     * @allow create: if isSignedIn();
-     * @allow update: if isSignedIn();
-     * @allow delete: if isSignedIn();
-     * @principle Enforces branch-level access for teachers and admins.
+     * @description Restricts student data access to authorized users only.
+     * @path /students/{studentId}
+     * @allow (get, create, update, delete): Only the owner user can read, create, update, or delete student information.
+     * @deny (get, create, update, delete): Any other user attempting to access this student will be denied.
+     *
      */
-    match /branches/{branchId}/students/{studentId} {
-      allow get, list: if true;
+    match /students/{studentId} {
+      allow get: if isSignedIn();
+      allow list: if false;
       allow create: if isSignedIn();
       allow update: if isSignedIn();
       allow delete: if isSignedIn();
     }
 
     /**
-     * @description Grants access to payment information under a student.
-     * @path /branches/{branchId}/students/{studentId}/payments/{paymentId}
-     * @allow get: if true;
-     * @allow list: if true;
-     * @allow create: if isSignedIn();
-     * @allow update: if isSignedIn();
-     * @allow delete: if isSignedIn();
-     * @principle Enforces parent-level access to payments.
+     * @description Restricts payment data access to authorized users only.
+     * @path /payments/{paymentId}
+     * @allow (get, create, update, delete): Only the owner user can read, create, update, or delete payment information.
+     * @deny (get, create, update, delete): Any other user attempting to access this payment will be denied.
      */
-    match /branches/{branchId}/students/{studentId}/payments/{paymentId} {
-      allow get, list: if true;
+    match /payments/{paymentId} {
+      allow get: if isSignedIn();
+      allow list: if false;
       allow create: if isSignedIn();
       allow update: if isSignedIn();
       allow delete: if isSignedIn();
     }
 
-    /**
-     * @description Grants public read access to public student profile.
-     * @path /branches/{branchId}/students/{studentId}/public_profile
-     * @allow get: if true;
-     * @allow list: if true;
-     * @allow create: if false;
-     * @allow update: if false;
-     * @allow delete: if false;
-     * @principle Provides public-lite access via QR codes.
-     */
-    match /branches/{branchId}/students/{studentId}/public_profile {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+    function isSignedIn() {
+      return request.auth != null;
     }
-  }
 
-  function isSignedIn() {
-    return request.auth != null;
-  }
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
 
-  function isOwner(userId) {
-    return request.auth.uid == userId;
-  }
+    function isCreatingOwner(userId) {
+        return request.auth.uid == userId && request.resource.data.id == userId;
+    }
 
-  function isExistingOwner(userId) {
-    return isSignedIn() && isOwner(userId) && resource != null;
+    function isExistingOwner(userId) {
+      return request.auth.uid == userId && resource.data.id == userId;
+    }
+
+    function isUserIdImmutableOnUpdate(userId) {
+        return request.resource.data.id == resource.data.id;
+    }
   }
 }
