@@ -60,7 +60,8 @@ interface Branch {
 
 const BRANCH_NAMES = ["Ogbomosho", "Saminaka", "Keffi", "Jos"];
 
-async function seedBranches() {
+// This function now returns a promise that resolves when seeding is done.
+async function seedBranchesIfNeeded() {
   const branchesCollectionRef = collection(db, 'branches');
   try {
       const existingBranchesSnap = await getDocs(branchesCollectionRef);
@@ -75,42 +76,37 @@ async function seedBranches() {
         });
         await batch.commit();
         console.log("Initial branches have been seeded.");
-        return true;
       }
   } catch (error) {
     console.error("Error seeding branches:", error);
   }
-  return false;
 }
 
 export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUserDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-
-  // Use a state to trigger re-fetch for useCollection
-  const [branchSeedTrigger, setBranchSeedTrigger] = useState(0);
+  const [isSeeding, setIsSeeding] = useState(false);
+  
+  // State to trigger re-fetch for useCollection
+  const [dataVersion, setDataVersion] = useState(0);
 
   const branchesQuery = useMemoFirebase(() => {
-    // This dependency on branchSeedTrigger will cause useCollection to refetch
-    if (branchSeedTrigger >= 0) {
+    // Dependency on dataVersion will force useCollection to refetch
+    if (dataVersion >= 0) {
       return collection(db, 'branches');
     }
     return null;
-  }, [branchSeedTrigger]);
+  }, [dataVersion]);
   
   const { data: branches, isLoading: branchesLoading } = useCollection<Branch>(branchesQuery);
 
-  const [isSeeding, setIsSeeding] = useState(false);
-
+  // Effect to seed branches when the dialog is opened by a super admin.
   useEffect(() => {
-    if (isOpen && !isSeeding && currentUser?.role === 'super_admin') {
+    if (isOpen && currentUser?.role === 'super_admin' && !isSeeding) {
       setIsSeeding(true);
-      seedBranches().then((wasSeeded) => {
-        if (wasSeeded) {
-          // If seeding happened, trigger a refetch by updating the state
-          setBranchSeedTrigger(c => c + 1);
-        }
-      }).finally(() => {
+      seedBranchesIfNeeded().then(() => {
+        // After seeding (or confirming they exist), trigger a data refetch.
+        setDataVersion(v => v + 1);
         setIsSeeding(false);
       });
     }
@@ -133,24 +129,33 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
       fullName: '',
       email: '',
       password: '',
-      role: currentUser?.role === 'branch_admin' ? 'teacher' : 'branch_admin',
-      branchId: currentUser?.role === 'branch_admin' ? currentUser.branchId : '',
+      role: 'branch_admin',
+      branchId: '',
     },
   });
   
+  // Reset form when dialog opens or user changes
   useEffect(() => {
-    form.reset({
-      fullName: '',
-      email: '',
-      password: '',
-      role: currentUser?.role === 'branch_admin' ? 'teacher' : 'branch_admin',
-      branchId: currentUser?.role === 'branch_admin' ? currentUser.branchId : '',
-    });
+    if(isOpen) {
+      form.reset({
+        fullName: '',
+        email: '',
+        password: '',
+        role: currentUser?.role === 'branch_admin' ? 'teacher' : 'branch_admin',
+        branchId: currentUser?.role === 'branch_admin' ? currentUser.branchId : '',
+      });
+    }
   }, [isOpen, currentUser, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
+      // Temporarily sign out the current admin to not conflict with new user creation
+      const currentAdminEmail = auth.currentUser?.email;
+      if (currentAdminEmail) {
+         await auth.signOut();
+      }
+
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
@@ -162,19 +167,20 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
         branchId: values.branchId,
       });
 
+      // The new user is now signed in, so sign them out immediately.
       await auth.signOut();
       
       toast({
-        title: 'User Invited Successfully',
+        title: 'User Created Successfully',
         description: `${values.fullName} has been added. You will be logged out to complete the process. Please log back in.`,
       });
       
       onOpenChange(false);
       
+      // Redirect to login page after a delay
       setTimeout(() => {
         window.location.href = '/login';
-      }, 3000)
-
+      }, 3000);
 
     } catch (error: any) {
       let errorMessage = "An unknown error occurred.";
@@ -185,9 +191,14 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
       }
       toast({
         variant: 'destructive',
-        title: 'Failed to Invite User',
+        title: 'Failed to Create User',
         description: errorMessage,
       });
+       // If creating the user fails, attempt to log the admin back in.
+       // This is a best-effort attempt and may require a manual login.
+      if (auth.currentUser === null) {
+          console.warn("User creation failed. Please log in again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -302,8 +313,8 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
 
             <DialogFooter>
               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" disabled={isLoading || isSeeding}>
+                {(isLoading || isSeeding) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Invite User
               </Button>
             </DialogFooter>
