@@ -42,7 +42,7 @@ export default function UsersPage() {
         </div>
         <div className="flex items-center space-x-2">
           <Button onClick={() => setInviteDialogOpen(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Invite User
+            <PlusCircle className="mr-2 h-4 w-4" /> Create New
           </Button>
         </div>
       </div>
