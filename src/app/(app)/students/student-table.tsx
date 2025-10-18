@@ -13,7 +13,9 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User as UserIcon } from 'lucide-react';
+import { User as UserIcon, QrCode } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 // This interface can be expanded based on the full Student entity
@@ -24,12 +26,13 @@ export interface Student {
   admissionNo: string;
   branchId: string;
   photoUrl: string;
-  // other fields from your Student entity
+  qrImageUrl?: string;
+  parentUserId?: string;
 }
 
 interface StudentTableProps {
   data: Student[];
-  columns: (keyof Student)[];
+  columns: (keyof Student | 'actions')[];
   isLoading: boolean;
 }
 
@@ -39,6 +42,7 @@ const columnHeaders: Record<string, string> = {
   class: 'Class',
   admissionNo: 'Admission No.',
   branchId: 'Branch ID',
+  actions: 'Actions',
 };
 
 
@@ -48,8 +52,28 @@ export function StudentTable({ data, columns, isLoading }: StudentTableProps) {
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   }
   
-  const renderCell = (item: Student, column: keyof Student) => {
-    const value = item[column];
+  const renderCell = (item: Student, column: keyof Student | 'actions') => {
+    if (column === 'actions') {
+      return (
+         <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" asChild>
+                <a href={item.qrImageUrl} target="_blank" rel="noopener noreferrer" download={`${item.admissionNo}-qrcode.png`}>
+                  <QrCode className="h-4 w-4" />
+                </a>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>View & Download QR Code</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+
+    const value = item[column as keyof Student];
+
     switch (column) {
       case 'photoUrl':
         return (
@@ -83,7 +107,7 @@ export function StudentTable({ data, columns, isLoading }: StudentTableProps) {
         <TableHeader>
           <TableRow>
             {columns.map(col => (
-              <TableHead key={col}>{columnHeaders[col] || col}</TableHead>
+              <TableHead key={String(col)}>{columnHeaders[String(col)] || String(col)}</TableHead>
             ))}
           </TableRow>
         </TableHeader>
@@ -92,7 +116,7 @@ export function StudentTable({ data, columns, isLoading }: StudentTableProps) {
             data.map(item => (
               <TableRow key={item.id}>
                 {columns.map(col => (
-                  <TableCell key={col}>{renderCell(item, col)}</TableCell>
+                  <TableCell key={String(col)}>{renderCell(item, col)}</TableCell>
                 ))}
               </TableRow>
             ))
@@ -108,3 +132,5 @@ export function StudentTable({ data, columns, isLoading }: StudentTableProps) {
     </div>
   );
 }
+
+    

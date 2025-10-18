@@ -1,0 +1,233 @@
+
+{
+  "entities": {
+    "Branch": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Branch",
+      "type": "object",
+      "description": "Represents a branch of the school system.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the branch."
+        },
+        "slug": {
+          "type": "string",
+          "description": "URL-friendly slug for the branch."
+        },
+        "address": {
+          "type": "string",
+          "description": "Address of the branch."
+        }
+      },
+      "required": [
+        "name",
+        "slug",
+        "address"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user within the system (teacher, parent, admin).",
+      "properties": {
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the user (teacher, parent, branch_admin, super_admin).",
+          "enum": ["teacher", "parent", "branch_admin", "super_admin"]
+        },
+        "branchId": {
+          "type": "string",
+          "description": "Reference to Branch. Required for all roles except super_admin."
+        }
+      },
+      "required": [
+        "fullName",
+        "email",
+        "role"
+      ]
+    },
+    "Student": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Student",
+      "type": "object",
+      "description": "Represents a student in the school system.",
+      "properties": {
+        "branchId": {
+          "type": "string",
+          "description": "Reference to Branch."
+        },
+        "parentUserId": {
+          "type": "string",
+          "description": "Reference to User (Parent)."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the student."
+        },
+        "dob": {
+          "type": "string",
+          "description": "Date of birth of the student.",
+          "format": "date"
+        },
+        "class": {
+          "type": "string",
+          "description": "Class of the student."
+        },
+        "admissionNo": {
+          "type": "string",
+          "description": "Admission number of the student."
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "URL of the student's photo stored in ImageKit.",
+          "format": "uri"
+        },
+        "qrToken": {
+          "type": "string",
+          "description": "Token for generating the QR code for the student."
+        },
+        "qrImageUrl": {
+          "type": "string",
+          "description": "URL of the student's QR code image stored in ImageKit. (Optional)",
+          "format": "uri"
+        },
+        "createdByUserId": {
+          "type": "string",
+          "description": "Reference to User who created the student record."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the student record was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "branchId",
+        "fullName",
+        "dob",
+        "class",
+        "admissionNo",
+        "photoUrl",
+        "qrToken",
+        "createdByUserId",
+        "createdAt",
+        "parentUserId"
+      ]
+    },
+    "Payment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Payment",
+      "type": "object",
+      "description": "Represents a payment record.",
+      "properties": {
+        "studentId": {
+          "type": "string",
+          "description": "Reference to Student."
+        },
+        "parentUserId": {
+          "type": "string",
+          "description": "Reference to User (Parent)."
+        },
+        "branchId": {
+          "type": "string",
+          "description": "Denormalized branchId for querying."
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount paid."
+        },
+        "receiptUrl": {
+          "type": "string",
+          "description": "URL of the fee receipt image stored in ImageKit.",
+          "format": "uri"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status of the payment.",
+          "enum": ["pending", "confirmed", "rejected"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the payment record was created.",
+          "format": "date-time"
+        },
+        "confirmedBy": {
+          "type": "string",
+          "description": "Reference to User (Admin) who confirmed the payment."
+        },
+        "confirmedAt": {
+          "type": "string",
+          "description": "Timestamp of when the payment was confirmed.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "studentId",
+        "parentUserId",
+        "branchId",
+        "amount",
+        "receiptUrl",
+        "status",
+        "createdAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/branches/{branchId}",
+        "definition": {
+          "schema": {
+            "$ref": "#/entities/Branch"
+          },
+          "description": "Stores branch information."
+        }
+      },
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "schema": {
+            "$ref": "#/entities/User"
+          },
+          "description": "Stores user information including roles and branch affiliations."
+        }
+      },
+      {
+        "path": "/students/{studentId}",
+        "definition": {
+          "schema": {
+            "$ref": "#/entities/Student"
+          },
+          "description": "Stores student information. Denormalized branchId allows for branch-level queries."
+        }
+      },
+      {
+        "path": "/payments/{paymentId}",
+        "definition": {
+          "schema": {
+            "$ref": "#/entities/Payment"
+          },
+          "description": "Stores payment information with denormalized studentId, parentUserId, and branchId for efficient and secure querying."
+        }
+      }
+    ]
+  }
+}
+
+    

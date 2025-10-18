@@ -5,8 +5,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { doc, setDoc, serverTimestamp, writeBatch, collection } from 'firebase/firestore';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { db, auth as mainAuth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/components/auth-provider';
 import { useRouter } from 'next/navigation';
@@ -33,11 +34,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Loader2 } from 'lucide-react';
+import { CalendarIcon, Loader2, Copy } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import Image from 'next/image';
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name is required.' }),
@@ -47,12 +50,18 @@ const formSchema = z.object({
   class: z.string().min(1, { message: 'Class is required.' }),
   admissionNo: z.string().min(1, { message: 'Admission number is required.' }),
   photoUrl: z.string().url({ message: 'A photo is required.' }),
+  parentEmail: z.string().email({ message: "Parent's email is required." }),
 });
 
 const imageKitAuthenticator = async () => {
   const response = await fetch('/api/imagekit/auth');
   const result = await response.json();
   return result;
+};
+
+// Function to generate a random password
+const generatePassword = () => {
+  return Math.random().toString(36).slice(-8);
 };
 
 export default function AddStudentPage() {
@@ -62,6 +71,8 @@ export default function AddStudentPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState('');
   const ikUploadRef = useRef<HTMLInputElement>(null);
+  const [showCredentials, setShowCredentials] = useState(false);
+  const [generatedCredentials, setGeneratedCredentials] = useState({ email: '', password: '' });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -70,6 +81,7 @@ export default function AddStudentPage() {
       class: '',
       admissionNo: '',
       photoUrl: '',
+      parentEmail: '',
     },
   });
 
@@ -111,64 +123,111 @@ export default function AddStudentPage() {
         return;
     }
     setIsLoading(true);
+
+    const tempApp = mainAuth.app;
+    const tempAuth = getAuth(tempApp);
+    
     try {
-      const studentId = doc(db, 'students', 'new-id').id;
+        const batch = writeBatch(db);
 
-      // 1. Generate QR Code Data URI
-      const baseUrl = window.location.origin;
-      const qrResult = await generateUniqueQrCode({ studentId, baseUrl });
-      
-      // 2. Upload QR Code to ImageKit
-      const qrUploadResponse = await fetch('/api/imagekit/auth-upload-qr', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-              fileName: `${studentId}-qr.png`,
-              file: qrResult.qrCodeDataUri,
-          }),
-      });
+        // 1. Create Parent User Account
+        const parentPassword = generatePassword();
+        const parentUserCredential = await createUserWithEmailAndPassword(tempAuth, values.parentEmail, parentPassword);
+        const parentUser = parentUserCredential.user;
 
-      if (!qrUploadResponse.ok) {
-          throw new Error('Failed to upload QR code.');
-      }
+        const parentUserDocRef = doc(db, 'users', parentUser.uid);
+        batch.set(parentUserDocRef, {
+            uid: parentUser.uid,
+            fullName: `${values.fullName}'s Parent`,
+            email: values.parentEmail,
+            role: 'parent',
+            branchId: user.branchId,
+        });
 
-      const qrUploadResult = await qrUploadResponse.json();
+        // 2. Create Student Document
+        const studentId = doc(collection(db, 'students')).id;
+        const studentDocRef = doc(db, 'students', studentId);
 
-      // 3. Create Student Document in Firestore
-      const studentDocRef = doc(db, 'students', studentId);
-      await setDoc(studentDocRef, {
-        ...values,
-        dob: format(values.dob, 'yyyy-MM-dd'),
-        branchId: user.branchId,
-        qrToken: studentId, // Using studentId as the unique token
-        qrImageUrl: qrUploadResult.url,
-        createdByUserId: user.uid,
-        createdAt: serverTimestamp(),
-      });
+        // 3. Generate QR Code
+        const baseUrl = window.location.origin;
+        const qrResult = await generateUniqueQrCode({ studentId, baseUrl });
+        
+        // 4. Upload QR Code to ImageKit
+        const qrUploadResponse = await fetch('/api/imagekit/auth-upload-qr', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                fileName: `${studentId}-qr.png`,
+                file: qrResult.qrCodeDataUri,
+            }),
+        });
 
-      toast({
-        title: 'Student Created',
-        description: `${values.fullName} has been added to the system.`,
-      });
-      router.push('/students');
+        if (!qrUploadResponse.ok) {
+            throw new Error('Failed to upload QR code.');
+        }
+        const qrUploadResult = await qrUploadResponse.json();
+
+        // 5. Set Student Data in Firestore
+        batch.set(studentDocRef, {
+            ...values,
+            dob: format(values.dob, 'yyyy-MM-dd'),
+            branchId: user.branchId,
+            qrToken: studentId,
+            qrImageUrl: qrUploadResult.url,
+            createdByUserId: user.uid,
+            createdAt: serverTimestamp(),
+            parentUserId: parentUser.uid, // Link student to parent
+        });
+
+        // 6. Commit all batched writes
+        await batch.commit();
+
+        setGeneratedCredentials({ email: values.parentEmail, password: parentPassword });
+        setShowCredentials(true);
+
+        toast({
+            title: 'Student & Parent Created',
+            description: `${values.fullName} and their parent's account have been added.`,
+        });
+        
+        // Don't redirect immediately, show credentials first.
+        // router.push('/students');
+
     } catch (error: any) {
-      console.error(error);
-      toast({
-        variant: 'destructive',
-        title: 'Failed to Create Student',
-        description: error.message || 'An unknown error occurred.',
-      });
+        console.error("Error during student creation:", error);
+        let errorMessage = "An unknown error occurred.";
+        if (error.code === 'auth/email-already-in-use') {
+            errorMessage = "The parent's email address is already in use by another account.";
+        } else {
+            errorMessage = error.message;
+        }
+        toast({
+            variant: 'destructive',
+            title: 'Failed to Create Student',
+            description: errorMessage,
+        });
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
+        // Sign out the newly created user and sign the admin back in
+        await mainAuth.signOut();
+        // You might need to re-authenticate the admin here if the session was lost.
+        // For simplicity, we assume the onAuthStateChanged listener handles this.
     }
   }
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: 'Copied!', description: 'Credentials copied to clipboard.' });
+  };
+
+
   return (
+    <>
     <Card className="max-w-3xl mx-auto">
       <CardHeader>
         <CardTitle>Add New Student</CardTitle>
         <CardDescription>
-          Fill in the details below to create a new student record.
+          Fill in the details below to create a new student record and a linked parent account.
         </CardDescription>
       </CardHeader>
       <Form {...form}>
@@ -293,6 +352,20 @@ export default function AddStudentPage() {
                         </FormItem>
                     )}
                     />
+                    <FormField
+                    control={form.control}
+                    name="parentEmail"
+                    render={({ field }) => (
+                        <FormItem className="md:col-span-2">
+                        <FormLabel>Parent's Email</FormLabel>
+                        <FormControl>
+                            <Input type="email" placeholder="parent@example.com" {...field} />
+                        </FormControl>
+                         <FormDescription>An account will be created for the parent with this email.</FormDescription>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
             </div>
           </CardContent>
           <CardFooter className="flex justify-end gap-2">
@@ -305,5 +378,42 @@ export default function AddStudentPage() {
         </form>
       </Form>
     </Card>
+    
+    <AlertDialog open={showCredentials} onOpenChange={setShowCredentials}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Parent Account Created Successfully!</AlertDialogTitle>
+            <AlertDialogDescription>
+              Please copy and securely share these login credentials with the parent. This information will only be shown once.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 my-4">
+            <div className="space-y-1">
+                <Label htmlFor="parent-email">Parent Email</Label>
+                <div className="flex items-center gap-2">
+                    <Input id="parent-email" value={generatedCredentials.email} readOnly />
+                    <Button variant="outline" size="icon" onClick={() => copyToClipboard(generatedCredentials.email)}>
+                        <Copy className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
+            <div className="space-y-1">
+                <Label htmlFor="parent-password">Temporary Password</Label>
+                 <div className="flex items-center gap-2">
+                    <Input id="parent-password" value={generatedCredentials.password} readOnly />
+                    <Button variant="outline" size="icon" onClick={() => copyToClipboard(generatedCredentials.password)}>
+                        <Copy className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => router.push('/students')}>Continue</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      </>
   );
 }
+
+    

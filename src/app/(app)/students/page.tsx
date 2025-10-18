@@ -60,9 +60,11 @@ export default function StudentsPage() {
           <CardDescription>A list of all students in your view.</CardDescription>
         </CardHeader>
         <CardContent>
-          <StudentTable columns={['photoUrl', 'fullName', 'class', 'admissionNo', 'branchId']} data={students || []} isLoading={isLoading} />
+          <StudentTable columns={['photoUrl', 'fullName', 'class', 'admissionNo', 'branchId', 'actions']} data={students || []} isLoading={isLoading} />
         </CardContent>
       </Card>
     </div>
   );
 }
+
+    
