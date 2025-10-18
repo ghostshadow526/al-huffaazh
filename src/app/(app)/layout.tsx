@@ -118,4 +118,22 @@ function DashboardSidebar({ user, children }: { user: User; children: React.Reac
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading }.
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/login');
+    }
+  }, [user, loading, router]);
+
+  if (loading || !user) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Logo className="h-16 w-16 animate-pulse text-accent" />
+      </div>
+    );
+  }
+
+  return <DashboardSidebar user={user}>{children}</DashboardSidebar>;
+}
