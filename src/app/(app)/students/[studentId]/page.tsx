@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { notFound, useParams } from 'next/navigation';
@@ -36,7 +36,7 @@ export default function StudentDetailPage() {
     return doc(db, 'students', studentId);
   }, [studentId]);
 
-  const { data: student, isLoading: studentLoading } = useDoc<Student>(studentRef);
+  const { data: student, isLoading: studentLoading, error: studentError } = useDoc<Student>(studentRef);
 
   // The parent credential ref now depends on the loaded student's parentUserId
   const credentialRef = useMemoFirebase(() => {
@@ -46,29 +46,30 @@ export default function StudentDetailPage() {
 
   const { data: credential, isLoading: credentialLoading } = useDoc<ParentCredential>(credentialRef);
 
+  // After loading, if there's no student document, then it's a 404.
+  // This check runs AFTER isLoading is false.
+  if (!student && !studentLoading && !studentError) {
+    notFound();
+  }
+
+  // A user can only view students in their own branch (unless super_admin)
+  const canViewStudent = user?.role === 'super_admin' || (student && user?.branchId === student.branchId);
 
   if (studentLoading) {
     return <DetailPageSkeleton />;
   }
 
-  // After loading, if there's no student, then it's a 404.
-  if (!student && !studentLoading) {
-    return notFound();
-  }
-  
-  if (!student) {
-      return <DetailPageSkeleton />;
-  }
-
-
-  // A teacher can only view students in their own branch
-  if (user?.role === 'teacher' && user.branchId !== student.branchId) {
+  if (!canViewStudent && student) {
     return (
         <Alert variant="destructive">
             <AlertTitle>Access Denied</AlertTitle>
             <AlertDescription>You do not have permission to view this student's details.</AlertDescription>
         </Alert>
     );
+  }
+  
+  if (!student) {
+      return <DetailPageSkeleton />;
   }
 
   const canViewCredentials = user?.role === 'super_admin' || user?.role === 'branch_admin' || user?.role === 'teacher';
