@@ -92,7 +92,7 @@ export default function InviteUserPage() {
           BRANCH_NAMES.forEach(name => {
             const slug = name.toLowerCase().replace(/\s+/g, '-');
             const branchRef = doc(branchesCollectionRef, slug);
-            batch.set(branchRef, { name, slug, address: name });
+            batch.set(branchRef, { name: `${name} branch`, slug, address: name });
           });
           await batch.commit();
           console.log("Initial branches have been seeded.");
@@ -329,3 +329,5 @@ export default function InviteUserPage() {
     </Card>
   );
 }
+
+    
