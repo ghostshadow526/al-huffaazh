@@ -37,6 +37,8 @@ const formSchema = z.object({
 });
 
 type Role = "admin" | "teacher" | "parent";
+const validRolesForAdminTab: string[] = ['super_admin', 'branch_admin'];
+
 
 export function LoginForm({ role }: { role: Role }) {
   const { toast } = useToast();
@@ -54,69 +56,74 @@ export function LoginForm({ role }: { role: Role }) {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!auth || !firestore) return;
+    if (!auth || !firestore) {
+      toast({ variant: "destructive", title: "Error", description: "Firebase is not initialized."});
+      return;
+    }
     setIsLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      const adminEmail = "alhuffazh@gmail.com";
-      const adminToken = "4MPWGavMNqZLtdUGqtWvUYY0xDL2";
-
-      // Super Admin Check
-      if (user.email === adminEmail && user.uid === adminToken) {
-        if (role === 'admin') {
-          toast({
-            title: "Success",
-            description: "Admin logged in successfully. Redirecting...",
-          });
-          router.push('/dashboard');
-        } else {
-          await auth.signOut();
-          toast({
-            variant: "destructive",
-            title: "Login Failed",
-            description: `This is an admin account. Please use the 'Admin' tab.`,
-          });
-        }
-        setIsLoading(false);
-        return;
-      }
-
-      // Teacher and Parent role check
+      // Firestore document check
       const userDocRef = doc(firestore, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
 
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        // Check if the user is logging in with the correct role tab
-        if (userData.role === role) {
-           toast({
-            title: "Success",
-            description: "Logged in successfully. Redirecting to dashboard...",
-          });
-          router.push('/dashboard');
-        } else if (userData.role === 'super_admin' && role ==='admin') {
-           toast({
-            title: "Success",
-            description: "Logged in successfully. Redirecting to dashboard...",
-          });
-          router.push('/dashboard');
-        } else {
-          await auth.signOut();
-          toast({
-            variant: "destructive",
-            title: "Role Mismatch",
-            description: `Your account is registered as a '${userData.role?.replace('_', ' ')}'. Please use the correct login tab.`,
-          });
+      if (!userDoc.exists()) {
+        // Special case for the hardcoded super admin who might not have a doc initially
+        const superAdminEmail = "alhuffazh@gmail.com";
+        const adminToken = "4MPWGavMNqZLtdUGqtWvUYY0xDL2";
+        if (user.email === superAdminEmail && user.uid === adminToken && role === 'admin') {
+           toast({ title: "Success", description: "Admin logged in successfully. Redirecting..." });
+           router.push('/dashboard');
+           setIsLoading(false);
+           return;
         }
-      } else {
-        // This case handles users that exist in Firebase Auth but not in the 'users' collection
+
+        // If not the super admin and no doc, deny access
         await auth.signOut();
         toast({
           variant: "destructive",
           title: "Login Failed",
-          description: "User record not found in the system. Please contact an administrator.",
+          description: "Your user account does not exist in our records. Please contact an administrator.",
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      const userData = userDoc.data();
+      const userRole = userData.role;
+
+      let canLogin = false;
+      let expectedRoleTab = userRole;
+
+      switch(userRole) {
+        case 'super_admin':
+        case 'branch_admin':
+          if (role === 'admin') canLogin = true;
+          expectedRoleTab = 'admin';
+          break;
+        case 'teacher':
+          if (role === 'teacher') canLogin = true;
+          break;
+        case 'parent':
+            if (role === 'parent') canLogin = true;
+            break;
+      }
+
+
+      if (canLogin) {
+        toast({
+          title: "Success",
+          description: "Logged in successfully. Redirecting to dashboard...",
+        });
+        router.push('/dashboard');
+      } else {
+        await auth.signOut();
+        toast({
+          variant: "destructive",
+          title: "Role Mismatch",
+          description: `Your account is a '${userRole?.replace('_', ' ')}'. Please use the '${expectedRoleTab}' tab to log in.`,
         });
       }
 
