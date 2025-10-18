@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { useAuth as useFirebaseAuth } from "@/firebase";
+import { useAuth as useFirebaseAuth, useFirestore } from "@/firebase";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +30,6 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email." }),
@@ -44,6 +43,7 @@ export function LoginForm({ role }: { role: Role }) {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const auth = useFirebaseAuth();
+  const firestore = useFirestore();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -54,18 +54,19 @@ export function LoginForm({ role }: { role: Role }) {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!auth) return;
+    if (!auth || !firestore) return;
     setIsLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      if (role === 'admin') {
-        const adminEmail = "alhuffazh@gmail.com";
-        const adminToken = "4MPWGavMNqZLtdUGqtWvUYY0xDL2";
+      const adminEmail = "alhuffazh@gmail.com";
+      const adminToken = "4MPWGavMNqZLtdUGqtWvUYY0xDL2";
 
-        if (user.email === adminEmail && user.uid === adminToken) {
-           toast({
+      // Super Admin Check
+      if (user.email === adminEmail && user.uid === adminToken) {
+        if (role === 'admin') {
+          toast({
             title: "Success",
             description: "Admin logged in successfully. Redirecting...",
           });
@@ -75,29 +76,47 @@ export function LoginForm({ role }: { role: Role }) {
           toast({
             variant: "destructive",
             title: "Login Failed",
-            description: "Not a valid admin account.",
+            description: `This is an admin account. Please use the 'Admin' tab.`,
           });
         }
-        return; // End execution for admin role
+        setIsLoading(false);
+        return;
       }
 
-      // For teacher and parent roles
-      const userDocRef = doc(db, 'users', user.uid);
+      // Teacher and Parent role check
+      const userDocRef = doc(firestore, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
 
-      if (userDoc.exists() && userDoc.data().role === role) {
-        toast({
-          title: "Success",
-          description: "Logged in successfully. Redirecting to dashboard...",
-        });
-        // The main AppLayout will handle the redirect to /dashboard
-        router.push('/dashboard');
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        // Check if the user is logging in with the correct role tab
+        if (userData.role === role) {
+           toast({
+            title: "Success",
+            description: "Logged in successfully. Redirecting to dashboard...",
+          });
+          router.push('/dashboard');
+        } else if (userData.role === 'super_admin' && role ==='admin') {
+           toast({
+            title: "Success",
+            description: "Logged in successfully. Redirecting to dashboard...",
+          });
+          router.push('/dashboard');
+        } else {
+          await auth.signOut();
+          toast({
+            variant: "destructive",
+            title: "Role Mismatch",
+            description: `Your account is registered as a '${userData.role?.replace('_', ' ')}'. Please use the correct login tab.`,
+          });
+        }
       } else {
+        // This case handles users that exist in Firebase Auth but not in the 'users' collection
         await auth.signOut();
         toast({
           variant: "destructive",
           title: "Login Failed",
-          description: `You are not registered as a ${role}.`,
+          description: "User record not found in the system. Please contact an administrator.",
         });
       }
 
