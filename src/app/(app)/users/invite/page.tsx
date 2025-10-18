@@ -54,20 +54,20 @@ interface Branch {
 }
 
 const BRANCH_NAMES = [
-    "Jos - Dutse Uku",
-    "Naraguta",
-    "Saminaka",
-    "Lere",
-    "Dokan Lere",
-    "Mariri",
-    "Katchia",
-    "Kayarda",
+    "JOS- dutse uku",
+    "naraguta",
+    "saminaka",
+    "lere",
+    "dokan lere",
+    "mariri",
+    "katchia",
+    "kayarda",
     "Toro",
-    "Marwa",
-    "Nye (Kogi State)",
-    "Gambare (Ogbomosho)",
-    "Hamama (Ogbomosho)",
-    "Sakee"
+    "marwa",
+    "nye kogi state",
+    "gambare ogbomosho",
+    "hamama ogbomosho",
+    "sakee"
 ];
 
 export default function InviteUserPage() {
@@ -305,7 +305,7 @@ export default function InviteUserPage() {
                         <SelectItem value="loading" disabled>Loading branches...</SelectItem>
                       ) : (
                         branches?.map(branch => (
-                          <SelectItem key={branch.id} value={branch.id}>
+                          <SelectItem key={branch.id} value={branch.id} className="capitalize">
                             {branch.name}
                           </SelectItem>
                         ))
