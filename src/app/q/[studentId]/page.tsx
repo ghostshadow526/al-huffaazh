@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Image from 'next/image';
-import { notFound } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,6 +18,7 @@ interface Student {
   admissionNo: string;
   photoUrl: string;
   dob: string;
+  qrImageUrl?: string;
 }
 
 interface Branch {
@@ -26,20 +27,22 @@ interface Branch {
 }
 
 
-export default function StudentIdCardPage({ params }: { params: { studentId: string } }) {
+export default function StudentIdCardPage() {
+  const params = useParams<{ studentId: string }>();
   const [student, setStudent] = useState<Student | null>(null);
   const [branch, setBranch] = useState<Branch | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!params.studentId) {
+    const studentId = params.studentId;
+    if (!studentId) {
         setIsLoading(false);
         return;
     }
 
     const fetchStudentData = async () => {
       try {
-        const studentDocRef = doc(db, 'students', params.studentId);
+        const studentDocRef = doc(db, 'students', studentId);
         const studentDocSnap = await getDoc(studentDocRef);
 
         if (!studentDocSnap.exists()) {
@@ -95,9 +98,11 @@ export default function StudentIdCardPage({ params }: { params: { studentId: str
                 {student.fullName.split(' ').map(n => n[0]).join('').toUpperCase()}
               </AvatarFallback>
             </Avatar>
-             <div className="absolute -bottom-2 -right-2 bg-background p-1 rounded-md shadow-md">
-                <Image src={student.qrImageUrl || ''} alt="QR Code" width={40} height={40} />
-             </div>
+             {student.qrImageUrl && (
+                <div className="absolute -bottom-2 -right-2 bg-background p-1 rounded-md shadow-md">
+                    <Image src={student.qrImageUrl} alt="QR Code" width={40} height={40} />
+                </div>
+             )}
           </div>
 
           <div className="space-y-1">
