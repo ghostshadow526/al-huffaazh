@@ -243,11 +243,13 @@
       "properties": {
         "studentId": { "type": "string", "description": "Reference to the Student." },
         "branchId": { "type": "string", "description": "Denormalized branchId for querying." },
-        "date": { "type": "string", "format": "date", "description": "The date of the attendance record." },
-        "status": { "type": "string", "enum": ["present", "absent"], "description": "The attendance status." },
-        "markedBy": { "type": "string", "description": "Reference to the User (teacher) who marked the attendance." }
+        "date": { "type": "string", "format": "date", "description": "The date of the attendance record in YYYY-MM-DD format." },
+        "time": { "type": "string", "format": "time", "description": "The time the attendance was marked." },
+        "status": { "type": "string", "enum": ["present", "absent", "late"], "description": "The attendance status." },
+        "markedBy": { "type": "string", "description": "Reference to the User (teacher) who marked the attendance." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Server timestamp of the record."}
       },
-      "required": ["studentId", "branchId", "date", "status", "markedBy"]
+      "required": ["studentId", "branchId", "date", "time", "status", "markedBy", "timestamp"]
     },
     "Subject": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -256,7 +258,7 @@
       "description": "Represents a subject taught in the school.",
       "properties": {
         "name": { "type": "string", "description": "Name of the subject (e.g., Mathematics, English, Chemistry)." },
-        "category": { "type": "string", "enum": ["primary", "secondary"], "description": "Category of the subject." }
+        "category": { "type": "string", "enum": ["primary", "secondary", "general"], "description": "Category of the subject." }
       },
       "required": ["name", "category"]
     },
@@ -345,7 +347,7 @@
         "path": "/attendance/{attendanceId}",
         "definition": {
           "schema": { "$ref": "#/entities/Attendance" },
-          "description": "Stores daily attendance records for all students."
+          "description": "Stores daily attendance records for all students. The document ID is a composite of studentId and date (YYYY-MM-DD)."
         }
       },
       {

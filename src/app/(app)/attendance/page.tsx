@@ -32,10 +32,7 @@ export default function AttendancePage() {
     const checkCameraPermission = async () => {
       if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
         try {
-          // We only check for permission, not actively use the stream here.
-          // The QrScanner component will handle the stream.
           const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          // If we get the stream, we have permission. Stop the tracks immediately.
           stream.getTracks().forEach(track => track.stop());
           setHasCameraPermission(true);
         } catch (error) {
@@ -53,7 +50,7 @@ export default function AttendancePage() {
     if (data && !isProcessing && !scannedStudentInfo) {
       setIsProcessing(true);
       const urlParts = data.text.split('/');
-      const studentId = urlParts.pop(); // Get the last part of the URL
+      const studentId = urlParts.pop();
       
       if(studentId) {
         setScannedStudentId(studentId);
@@ -97,31 +94,33 @@ export default function AttendancePage() {
 
   const handleError = (err: any) => {
     console.error(err);
-    // Don't toast on every error, as it can be spammy.
-    // The alert for permission denied is a better UX.
-    if (err?.name === 'NotAllowedError') {
+    if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
         setHasCameraPermission(false);
     }
   };
 
   const markAsPresent = async () => {
-    if (!scannedStudentId || !user || !user.branchId || !firestore) return;
+    if (!scannedStudentId || !user || !user.branchId || !firestore || !scannedStudentInfo) return;
     
     setIsProcessing(true);
     try {
-        const attendanceColRef = collection(firestore, 'attendance');
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-        const attendanceId = `${scannedStudentId}_${today}`;
-        const attendanceDocRef = doc(attendanceColRef, attendanceId);
+        const today = new Date();
+        const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
+        const timeString = today.toTimeString().split(' ')[0]; // HH:MM:SS
+        
+        // Use studentId and date to create a unique ID for today's attendance
+        const attendanceId = `${scannedStudentId}_${dateString}`;
+        const attendanceDocRef = doc(firestore, 'attendance', attendanceId);
 
         await setDoc(attendanceDocRef, {
             studentId: scannedStudentId,
-            branchId: user.branchId,
-            date: today,
+            branchId: scannedStudentInfo.branchId,
+            date: dateString,
+            time: timeString,
             status: 'present',
             markedBy: user.uid,
             timestamp: serverTimestamp(),
-        });
+        }, { merge: true }); // Use merge to update if exists, create if not
 
         toast({
             title: 'Attendance Marked',
