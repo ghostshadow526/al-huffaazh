@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -10,7 +10,7 @@ import { doc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore
 import { useToast } from '@/hooks/use-toast';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useMemoFirebase, useAuth as useFirebaseAuth, useFirestore } from '@/firebase/provider';
-import { useAuth, User } from '@/components/auth-provider';
+import { useAuth } from '@/components/auth-provider';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -44,9 +44,16 @@ const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name is required.' }),
   email: z.string().email({ message: 'Please enter a valid email.' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
-  role: z.enum(['branch_admin', 'teacher', 'parent']),
-  branchId: z.string().min(1, { message: 'Branch is required.' }),
+  role: z.enum(['super_admin', 'branch_admin', 'teacher', 'parent']),
+  branchId: z.string().optional(),
+}).refine((data) => {
+    // branchId is required if role is not super_admin
+    return data.role === 'super_admin' || (typeof data.branchId === 'string' && data.branchId.length > 0);
+}, {
+    message: 'Branch is required for this role.',
+    path: ['branchId'],
 });
+
 
 interface Branch {
   id: string;
@@ -54,21 +61,22 @@ interface Branch {
 }
 
 const BRANCH_NAMES = [
-    "JOS- dutse uku branch",
-    "naraguta branch",
-    "saminaka branch",
-    "lere branch",
-    "dokan lere branch",
-    "mariri branch",
-    "katchia branch",
-    "kayarda branch",
-    "Toro branch",
-    "marwa branch",
-    "nye kogi state branch",
-    "gambare ogbomosho branch",
-    "hamama ogbomosho branch",
-    "sakee branch"
+    "JOS – Dutse Uku Branch",
+    "Naraguta Branch",
+    "Saminaka Branch",
+    "Lere Branch",
+    "Dokan Lere Branch",
+    "Mariri Branch",
+    "Katchia Branch",
+    "Kayarda Branch",
+    "Toro Branch",
+    "Marwa Branch",
+    "Nye Kogi State Branch",
+    "Gambare Ogbomosho Branch",
+    "Hamama Ogbomosho Branch",
+    "Sakee Branch"
 ];
+
 
 export default function InviteUserPage() {
   const { user: currentUser } = useAuth();
@@ -90,9 +98,9 @@ export default function InviteUserPage() {
           console.log("No branches found, seeding initial branches...");
           const batch = writeBatch(db);
           BRANCH_NAMES.forEach(name => {
-            const slug = name.toLowerCase().replace(/\s+/g, '-');
+            const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
             const branchRef = doc(branchesCollectionRef, slug);
-            batch.set(branchRef, { name: name, slug, address: name.replace(' branch', '') });
+            batch.set(branchRef, { name: name, slug, address: name.replace(' Branch', '') });
           });
           await batch.commit();
           console.log("Initial branches have been seeded.");
@@ -130,7 +138,7 @@ export default function InviteUserPage() {
 
   const availableRoles = useMemo(() => {
     if (currentUser?.role === 'super_admin') {
-      return ['branch_admin', 'teacher', 'parent'];
+      return ['super_admin', 'branch_admin', 'teacher', 'parent'];
     }
     if (currentUser?.role === 'branch_admin') {
       return ['teacher', 'parent'];
@@ -149,6 +157,11 @@ export default function InviteUserPage() {
     },
   });
   
+  const selectedRole = useWatch({
+    control: form.control,
+    name: 'role'
+  });
+
   useEffect(() => {
       form.reset({
         fullName: '',
@@ -176,7 +189,7 @@ export default function InviteUserPage() {
         fullName: values.fullName,
         email: values.email,
         role: values.role,
-        branchId: values.branchId,
+        branchId: values.role === 'super_admin' ? null : values.branchId,
       });
 
       await auth.signOut();
@@ -266,7 +279,14 @@ export default function InviteUserPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Role</FormLabel>
-                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                   <Select onValueChange={(value) => {
+                       field.onChange(value);
+                       if (value === 'super_admin') {
+                           form.setValue('branchId', undefined);
+                       } else if (currentUser?.role === 'branch_admin') {
+                           form.setValue('branchId', currentUser.branchId);
+                       }
+                   }} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a role" />
@@ -284,38 +304,40 @@ export default function InviteUserPage() {
                 </FormItem>
               )}
             />
-             <FormField
-              control={form.control}
-              name="branchId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Branch</FormLabel>
-                  <Select 
-                    onValueChange={field.onChange} 
-                    value={field.value}
-                    disabled={currentUser?.role === 'branch_admin' || branchesLoading || isSeeding}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a branch" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {branchesLoading || isSeeding ? (
-                        <SelectItem value="loading" disabled>Loading branches...</SelectItem>
-                      ) : (
-                        branches?.map(branch => (
-                          <SelectItem key={branch.id} value={branch.id} className="capitalize">
-                            {branch.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {selectedRole !== 'super_admin' && (
+                 <FormField
+                  control={form.control}
+                  name="branchId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Branch</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        value={field.value}
+                        disabled={currentUser?.role === 'branch_admin' || branchesLoading || isSeeding}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a branch" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {branchesLoading || isSeeding ? (
+                            <SelectItem value="loading" disabled>Loading branches...</SelectItem>
+                          ) : (
+                            branches?.map(branch => (
+                              <SelectItem key={branch.id} value={branch.id} className="capitalize">
+                                {branch.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+            )}
           </CardContent>
           <CardFooter className="flex justify-end gap-2">
               <Button type="button" variant="ghost" onClick={() => router.back()}>Cancel</Button>
