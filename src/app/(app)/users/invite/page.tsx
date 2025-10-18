@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -10,15 +11,17 @@ import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useMemoFirebase } from '@/firebase/provider';
+import { useAuth, User } from '@/components/auth-provider';
+import { useRouter } from 'next/navigation';
 
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '@/components/ui/card';
 import {
   Form,
   FormControl,
@@ -37,7 +40,6 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
-import { User } from '@/components/auth-provider';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name is required.' }),
@@ -47,12 +49,6 @@ const formSchema = z.object({
   branchId: z.string().min(1, { message: 'Branch is required.' }),
 });
 
-interface InviteUserDialogProps {
-  isOpen: boolean;
-  onOpenChange: (isOpen: boolean) => void;
-  currentUser: User | null;
-}
-
 interface Branch {
   id: string;
   name: string;
@@ -60,7 +56,6 @@ interface Branch {
 
 const BRANCH_NAMES = ["Ogbomosho", "Saminaka", "Keffi", "Jos"];
 
-// This function now returns a promise that resolves when seeding is done.
 async function seedBranchesIfNeeded() {
   const branchesCollectionRef = collection(db, 'branches');
   try {
@@ -72,26 +67,27 @@ async function seedBranchesIfNeeded() {
         BRANCH_NAMES.forEach(name => {
           const slug = name.toLowerCase().replace(/\s+/g, '-');
           const branchRef = doc(branchesCollectionRef, slug);
-          batch.set(branchRef, { name, slug, address: name }); // Using name as address placeholder
+          batch.set(branchRef, { name, slug, address: name });
         });
         await batch.commit();
         console.log("Initial branches have been seeded.");
+        return true;
       }
   } catch (error) {
     console.error("Error seeding branches:", error);
   }
+  return false;
 }
 
-export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUserDialogProps) {
+export default function InviteUserPage() {
+  const { user: currentUser } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const [isSeeding, setIsSeeding] = useState(false);
-  
-  // State to trigger re-fetch for useCollection
+  const [isSeeding, setIsSeeding] = useState(true);
   const [dataVersion, setDataVersion] = useState(0);
 
   const branchesQuery = useMemoFirebase(() => {
-    // Dependency on dataVersion will force useCollection to refetch
     if (dataVersion >= 0) {
       return collection(db, 'branches');
     }
@@ -100,17 +96,19 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
   
   const { data: branches, isLoading: branchesLoading } = useCollection<Branch>(branchesQuery);
 
-  // Effect to seed branches when the dialog is opened by a super admin.
   useEffect(() => {
-    if (isOpen && currentUser?.role === 'super_admin' && !isSeeding) {
+    if (currentUser?.role === 'super_admin') {
       setIsSeeding(true);
-      seedBranchesIfNeeded().then(() => {
-        // After seeding (or confirming they exist), trigger a data refetch.
-        setDataVersion(v => v + 1);
+      seedBranchesIfNeeded().then((seeded) => {
+        if (seeded) {
+          setDataVersion(v => v + 1);
+        }
         setIsSeeding(false);
       });
+    } else {
+        setIsSeeding(false);
     }
-  }, [isOpen, currentUser, isSeeding]);
+  }, [currentUser]);
 
 
   const availableRoles = useMemo(() => {
@@ -134,9 +132,7 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
     },
   });
   
-  // Reset form when dialog opens or user changes
   useEffect(() => {
-    if(isOpen) {
       form.reset({
         fullName: '',
         email: '',
@@ -144,13 +140,11 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
         role: currentUser?.role === 'branch_admin' ? 'teacher' : 'branch_admin',
         branchId: currentUser?.role === 'branch_admin' ? currentUser.branchId : '',
       });
-    }
-  }, [isOpen, currentUser, form]);
+  }, [currentUser, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      // Temporarily sign out the current admin to not conflict with new user creation
       const currentAdminEmail = auth.currentUser?.email;
       if (currentAdminEmail) {
          await auth.signOut();
@@ -167,7 +161,6 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
         branchId: values.branchId,
       });
 
-      // The new user is now signed in, so sign them out immediately.
       await auth.signOut();
       
       toast({
@@ -175,11 +168,8 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
         description: `${values.fullName} has been added. You will be logged out to complete the process. Please log back in.`,
       });
       
-      onOpenChange(false);
-      
-      // Redirect to login page after a delay
       setTimeout(() => {
-        window.location.href = '/login';
+        router.push('/login');
       }, 3000);
 
     } catch (error: any) {
@@ -194,8 +184,6 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
         title: 'Failed to Create User',
         description: errorMessage,
       });
-       // If creating the user fails, attempt to log the admin back in.
-       // This is a best-effort attempt and may require a manual login.
       if (auth.currentUser === null) {
           console.warn("User creation failed. Please log in again.");
       }
@@ -205,16 +193,16 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>Invite New User</DialogTitle>
-          <DialogDescription>
-            Enter the details of the new user. They will be created in the system.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+    <Card className="max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>Invite New User</CardTitle>
+        <CardDescription>
+          Enter the details of the new user. They will be created in the system.
+        </CardDescription>
+      </CardHeader>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <CardContent className="space-y-4">
             <FormField
               control={form.control}
               name="fullName"
@@ -286,7 +274,7 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
                   <FormLabel>Branch</FormLabel>
                   <Select 
                     onValueChange={field.onChange} 
-                    defaultValue={field.value}
+                    value={field.value}
                     disabled={currentUser?.role === 'branch_admin' || branchesLoading || isSeeding}
                   >
                     <FormControl>
@@ -310,17 +298,16 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
                 </FormItem>
               )}
             />
-
-            <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          </CardContent>
+          <CardFooter className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={() => router.back()}>Cancel</Button>
               <Button type="submit" disabled={isLoading || isSeeding}>
                 {(isLoading || isSeeding) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Invite User
               </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+          </CardFooter>
+        </form>
+      </Form>
+    </Card>
   );
 }
