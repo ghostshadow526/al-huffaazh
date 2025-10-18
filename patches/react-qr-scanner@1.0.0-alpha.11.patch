@@ -1,0 +1,16 @@
+diff --git a/node_modules/react-qr-scanner/dist/react-qr-scanner.umd.js b/node_modules/react-qr-scanner/dist/react-qr-scanner.umd.js
+index 455a420..f531536 100644
+--- a/node_modules/react-qr-scanner/dist/react-qr-scanner.umd.js
++++ b/node_modules/react-qr-scanner/dist/react-qr-scanner.umd.js
+@@ -1355,7 +1355,9 @@
+ 
+       var check = React.useCallback(function () {
+         var chose = storage.get(storageKey);
+-        var camera = JSON.parse(chose);
++        if (!chose) return;
++
++        var camera = chose ? JSON.parse(chose) : null;
+ 
+         if (chose) {
+           setFacingMode(camera.type);
+
