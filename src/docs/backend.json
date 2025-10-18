@@ -68,6 +68,10 @@
       "type": "object",
       "description": "Represents a student in the school system.",
       "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier for the student."
+        },
         "branchId": {
           "type": "string",
           "description": "Reference to Branch."
@@ -132,6 +136,7 @@
         }
       },
       "required": [
+        "id",
         "branchId",
         "fullName",
         "dob",
@@ -203,6 +208,32 @@
         "status",
         "createdAt"
       ]
+    },
+    "ParentCredential": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ParentCredential",
+      "type": "object",
+      "description": "Temporarily stores parent login credentials upon creation.",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Parent's email address."
+        },
+        "password": {
+          "type": "string",
+          "description": "Parent's temporary password."
+        },
+        "studentId": {
+            "type": "string",
+            "description": "The ID of the student associated with this parent."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when this credential record should be automatically deleted."
+        }
+      },
+      "required": ["email", "password", "studentId", "expiresAt"]
     }
   },
   "auth": {
@@ -247,9 +278,16 @@
           },
           "description": "Stores payment information with denormalized studentId, parentUserId, and branchId for efficient and secure querying."
         }
+      },
+      {
+        "path": "/parentCredentials/{userId}",
+        "definition": {
+          "schema": {
+            "$ref": "#/entities/ParentCredential"
+          },
+          "description": "Stores temporary parent credentials. Documents have a TTL and are automatically deleted."
+        }
       }
     ]
   }
 }
-
-    

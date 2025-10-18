@@ -3,6 +3,7 @@
 
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   Table,
   TableBody,
@@ -13,7 +14,7 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User as UserIcon, QrCode } from 'lucide-react';
+import { User as UserIcon, QrCode, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -58,18 +59,32 @@ export function StudentTable({ data, columns, isLoading }: StudentTableProps) {
     if (column === 'actions') {
       return (
          <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" asChild>
-                <a href={item.qrImageUrl} target="_blank" rel="noopener noreferrer" download={`${item.admissionNo}-qrcode.png`}>
-                  <QrCode className="h-4 w-4" />
-                </a>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>View & Download QR Code</p>
-            </TooltipContent>
-          </Tooltip>
+          <div className='flex items-center gap-2'>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" asChild>
+                  <Link href={`/students/${item.id}`}>
+                    <Eye className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>View Student Info</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" asChild>
+                  <a href={item.qrImageUrl} target="_blank" rel="noopener noreferrer" download={`${item.admissionNo}-qrcode.png`}>
+                    <QrCode className="h-4 w-4" />
+                  </a>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>View & Download QR Code</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </TooltipProvider>
       );
     }
@@ -134,5 +149,3 @@ export function StudentTable({ data, columns, isLoading }: StudentTableProps) {
     </div>
   );
 }
-
-    

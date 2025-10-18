@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { doc, setDoc, serverTimestamp, writeBatch, collection } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, writeBatch, collection, Timestamp } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { db, auth as mainAuth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -156,6 +156,18 @@ export default function AddStudentPage() {
             role: 'parent',
             branchId: user.branchId,
         });
+        
+        // 1.5 Store parent credentials temporarily
+        const credentialDocRef = doc(db, 'parentCredentials', parentUser.uid);
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30); // Expires in 30 days
+        batch.set(credentialDocRef, {
+          email: values.parentEmail,
+          password: parentPassword,
+          studentId: '', // we'll update this later
+          expiresAt: Timestamp.fromDate(expiresAt),
+        });
+
 
         // 2. Create Student Document
         const studentId = doc(collection(db, 'students')).id;
@@ -179,10 +191,14 @@ export default function AddStudentPage() {
             throw new Error('Failed to upload QR code.');
         }
         const qrUploadResult = await qrUploadResponse.json();
+        
+        // 5. Update credential doc with student ID
+        batch.update(credentialDocRef, { studentId: studentId });
 
-        // 5. Set Student Data in Firestore
+        // 6. Set Student Data in Firestore
         batch.set(studentDocRef, {
             ...values,
+            id: studentId,
             dob: format(values.dob, 'yyyy-MM-dd'),
             branchId: user.branchId,
             qrToken: studentId,
@@ -193,7 +209,7 @@ export default function AddStudentPage() {
             parentEmail: values.parentEmail, // Denormalize parent email
         });
 
-        // 6. Commit all batched writes
+        // 7. Commit all batched writes
         await batch.commit();
 
         setGeneratedCredentials({ email: values.parentEmail, password: parentPassword });
@@ -470,5 +486,3 @@ export default function AddStudentPage() {
       </>
   );
 }
-
-    
