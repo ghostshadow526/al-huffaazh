@@ -1,12 +1,24 @@
 
 "use client";
-import { useAuth } from "@/components/auth-provider";
+import { useAuth, UserRole } from "@/components/auth-provider";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Users, CreditCard } from "lucide-react";
+import { Users, CreditCard, UserPlus, ClipboardList, CalendarCheck, ResultIcon } from "lucide-react";
 import { useMemoFirebase, useFirestore } from "@/firebase/provider";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+
+const quickActions: { href: string; label: string; description: string; icon: React.ElementType; roles: UserRole[] }[] = [
+    { href: "/students/add", label: "Add a new student", description: "Enroll a new student and create their parent's account.", icon: UserPlus, roles: ['teacher', 'branch_admin', 'super_admin'] },
+    { href: "/manage-students", label: "Manage student records", description: "View, and see details of existing students.", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
+    { href: "/attendance", label: "Take attendance", description: "Mark daily attendance by scanning student QR codes.", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
+    { href: "/results", label: "Enter student results", description: "Input term results and grades for your students.", icon: ResultIcon, roles: ['teacher', 'branch_admin', 'super_admin'] },
+    { href: "/payments", label: "Confirm payments", description: "Review and confirm submitted fee payments.", icon: CreditCard, roles: ['super_admin', 'branch_admin'] },
+    { href: "/payments", label: "View payment history", description: "Check your payment status and upload receipts.", icon: CreditCard, roles: ['parent'] },
+    { href: "/users/invite", label: "Create a new user", description: "Invite new teachers or administrators to the system.", icon: UserPlus, roles: ['super_admin', 'branch_admin'] },
+];
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -54,6 +66,8 @@ export default function DashboardPage() {
         setLoadingStats(false);
       }
   }, [students, payments, studentsLoading, paymentsLoading])
+  
+  const availableActions = user?.role ? quickActions.filter(action => action.roles.includes(user.role as UserRole)) : [];
 
 
   return (
@@ -105,7 +119,23 @@ export default function DashboardPage() {
             <CardDescription>Based on your role, here are some things you can do.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p>Your quick actions here...</p>
+            {availableActions.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {availableActions.map((action) => (
+                        <Button key={action.href} asChild variant="outline" className="h-auto text-left justify-start items-start">
+                            <Link href={action.href} className="flex gap-4 p-4 items-center">
+                                <action.icon className="h-6 w-6 text-accent" />
+                                <div className="flex flex-col">
+                                    <span className="font-semibold">{action.label}</span>
+                                    <span className="text-sm text-muted-foreground">{action.description}</span>
+                                </div>
+                            </Link>
+                        </Button>
+                    ))}
+                </div>
+            ) : (
+                <p className="text-muted-foreground">No specific actions available for your role at the moment.</p>
+            )}
           </CardContent>
         </Card>
     </div>

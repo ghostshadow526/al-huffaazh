@@ -30,6 +30,7 @@ import {
   LucideIcon,
   ClipboardList,
   CalendarCheck,
+  User as UserProfileIcon,
   GraduationCap as ResultIcon,
 } from 'lucide-react';
 import { useAuth as useFirebaseAuth } from '@/firebase';
@@ -41,6 +42,7 @@ function getInitials(name?: string | null) {
 
 const navItems: { href: string; label: string; icon: LucideIcon; roles: UserRole[] }[] = [
     { href: "/dashboard", label: "Dashboard", icon: Home, roles: ['super_admin', 'branch_admin', 'teacher', 'parent'] },
+    { href: "/profile", label: "My Profile", icon: UserProfileIcon, roles: ['super_admin', 'branch_admin', 'teacher', 'parent'] },
     { href: "/students", label: "Students", icon: Users, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/manage-students", label: "Manage Students", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/students/add", label: "Add Student", icon: UserPlus, roles: ['teacher', 'branch_admin', 'super_admin'] },
