@@ -44,7 +44,7 @@ const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name is required.' }),
   email: z.string().email({ message: 'Please enter a valid email.' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
-  role: z.enum(['super_admin', 'branch_admin', 'teacher', 'parent']),
+  role: z.enum(['branch_admin', 'teacher', 'parent']),
   branchId: z.string().optional(),
 }).refine((data) => {
     // branchId is required if role is not super_admin
@@ -138,7 +138,7 @@ export default function InviteUserPage() {
 
   const availableRoles = useMemo(() => {
     if (currentUser?.role === 'super_admin') {
-      return ['super_admin', 'branch_admin', 'teacher', 'parent'];
+      return ['branch_admin', 'teacher', 'parent'];
     }
     if (currentUser?.role === 'branch_admin') {
       return ['teacher', 'parent'];
@@ -189,7 +189,7 @@ export default function InviteUserPage() {
         fullName: values.fullName,
         email: values.email,
         role: values.role,
-        branchId: values.role === 'super_admin' ? null : values.branchId,
+        branchId: values.branchId,
       });
 
       await auth.signOut();
@@ -281,9 +281,7 @@ export default function InviteUserPage() {
                   <FormLabel>Role</FormLabel>
                    <Select onValueChange={(value) => {
                        field.onChange(value);
-                       if (value === 'super_admin') {
-                           form.setValue('branchId', undefined);
-                       } else if (currentUser?.role === 'branch_admin') {
+                        if (currentUser?.role === 'branch_admin') {
                            form.setValue('branchId', currentUser.branchId);
                        }
                    }} defaultValue={field.value}>
@@ -304,40 +302,39 @@ export default function InviteUserPage() {
                 </FormItem>
               )}
             />
-            {selectedRole !== 'super_admin' && (
-                 <FormField
-                  control={form.control}
-                  name="branchId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Branch</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        value={field.value}
-                        disabled={currentUser?.role === 'branch_admin' || branchesLoading || isSeeding}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a branch" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {branchesLoading || isSeeding ? (
-                            <SelectItem value="loading" disabled>Loading branches...</SelectItem>
-                          ) : (
-                            branches?.map(branch => (
-                              <SelectItem key={branch.id} value={branch.id} className="capitalize">
-                                {branch.name}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-            )}
+            <FormField
+              control={form.control}
+              name="branchId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Branch</FormLabel>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    value={field.value}
+                    disabled={currentUser?.role === 'branch_admin' || branchesLoading || isSeeding}
+                    required={selectedRole !== 'super_admin'}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a branch" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {branchesLoading || isSeeding ? (
+                        <SelectItem value="loading" disabled>Loading branches...</SelectItem>
+                      ) : (
+                        branches?.map(branch => (
+                          <SelectItem key={branch.id} value={branch.id} className="capitalize">
+                            {branch.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </CardContent>
           <CardFooter className="flex justify-end gap-2">
               <Button type="button" variant="ghost" onClick={() => router.back()}>Cancel</Button>
@@ -351,3 +348,5 @@ export default function InviteUserPage() {
     </Card>
   );
 }
+
+    
