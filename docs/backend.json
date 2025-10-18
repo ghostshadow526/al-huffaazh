@@ -6,10 +6,6 @@
       "type": "object",
       "description": "Represents a branch of the school system.",
       "properties": {
-        "branchId": {
-          "type": "string",
-          "description": "Unique identifier for the Branch entity."
-        },
         "name": {
           "type": "string",
           "description": "Name of the branch."
@@ -24,7 +20,6 @@
         }
       },
       "required": [
-        "branchId",
         "name",
         "slug",
         "address"
@@ -36,11 +31,7 @@
       "type": "object",
       "description": "Represents a user within the system (teacher, parent, admin).",
       "properties": {
-        "userId": {
-          "type": "string",
-          "description": "Unique identifier for the User entity."
-        },
-        "name": {
+        "fullName": {
           "type": "string",
           "description": "Full name of the user."
         },
@@ -51,19 +42,18 @@
         },
         "role": {
           "type": "string",
-          "description": "Role of the user (teacher, parent, branch_admin, super_admin)."
+          "description": "Role of the user (teacher, parent, branch_admin, super_admin).",
+          "enum": ["teacher", "parent", "branch_admin", "super_admin"]
         },
         "branchId": {
           "type": "string",
-          "description": "Reference to Branch. (Relationship: Branch 1:N User)"
+          "description": "Reference to Branch. Required for all roles except super_admin."
         }
       },
       "required": [
-        "userId",
-        "name",
+        "fullName",
         "email",
-        "role",
-        "branchId"
+        "role"
       ]
     },
     "Student": {
@@ -72,13 +62,9 @@
       "type": "object",
       "description": "Represents a student in the school system.",
       "properties": {
-        "studentId": {
-          "type": "string",
-          "description": "Unique identifier for the Student entity."
-        },
         "branchId": {
           "type": "string",
-          "description": "Reference to Branch. (Relationship: Branch 1:N Student)"
+          "description": "Reference to Branch."
         },
         "fullName": {
           "type": "string",
@@ -87,7 +73,7 @@
         "dob": {
           "type": "string",
           "description": "Date of birth of the student.",
-          "format": "date-time"
+          "format": "date"
         },
         "class": {
           "type": "string",
@@ -113,7 +99,7 @@
         },
         "createdByUserId": {
           "type": "string",
-          "description": "Reference to User who created the student record. (Relationship: User 1:N Student)"
+          "description": "Reference to User who created the student record."
         },
         "createdAt": {
           "type": "string",
@@ -122,7 +108,6 @@
         }
       },
       "required": [
-        "studentId",
         "branchId",
         "fullName",
         "dob",
@@ -140,17 +125,17 @@
       "type": "object",
       "description": "Represents a payment record.",
       "properties": {
-        "paymentId": {
-          "type": "string",
-          "description": "Unique identifier for the Payment entity."
-        },
         "studentId": {
           "type": "string",
-          "description": "Reference to Student. (Relationship: Student 1:N Payment)"
+          "description": "Reference to Student."
         },
         "parentUserId": {
           "type": "string",
-          "description": "Reference to User (Parent). (Relationship: User 1:N Payment)"
+          "description": "Reference to User (Parent)."
+        },
+        "branchId": {
+          "type": "string",
+          "description": "Denormalized branchId for querying."
         },
         "amount": {
           "type": "number",
@@ -163,16 +148,17 @@
         },
         "status": {
           "type": "string",
-          "description": "Status of the payment (pending, confirmed, rejected)."
+          "description": "Status of the payment.",
+          "enum": ["pending", "confirmed", "rejected"]
         },
         "createdAt": {
           "type": "string",
           "description": "Timestamp of when the payment record was created.",
           "format": "date-time"
         },
-        "confirmedByAdminUserId": {
+        "confirmedBy": {
           "type": "string",
-          "description": "Reference to User (Admin) who confirmed the payment. (Relationship: User 1:N Payment)"
+          "description": "Reference to User (Admin) who confirmed the payment."
         },
         "confirmedAt": {
           "type": "string",
@@ -181,9 +167,9 @@
         }
       },
       "required": [
-        "paymentId",
         "studentId",
         "parentUserId",
+        "branchId",
         "amount",
         "receiptUrl",
         "status",
@@ -193,8 +179,7 @@
   },
   "auth": {
     "providers": [
-      "password",
-      "anonymous"
+      "password"
     ]
   },
   "firestore": {
@@ -202,100 +187,39 @@
       {
         "path": "/branches/{branchId}",
         "definition": {
-          "entityName": "Branch",
           "schema": {
-            "$ref": "#/backend/entities/Branch"
+            "$ref": "#/entities/Branch"
           },
-          "description": "Stores branch information.",
-          "params": [
-            {
-              "name": "branchId",
-              "description": "The unique identifier of the branch."
-            }
-          ]
+          "description": "Stores branch information."
         }
       },
       {
         "path": "/users/{userId}",
         "definition": {
-          "entityName": "User",
           "schema": {
-            "$ref": "#/backend/entities/User"
+            "$ref": "#/entities/User"
           },
-          "description": "Stores user information.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            }
-          ]
+          "description": "Stores user information including roles and branch affiliations."
         }
       },
       {
-        "path": "/branches/{branchId}/students/{studentId}",
+        "path": "/students/{studentId}",
         "definition": {
-          "entityName": "Student",
           "schema": {
-            "$ref": "#/backend/entities/Student"
+            "$ref": "#/entities/Student"
           },
-          "description": "Stores student information. Includes denormalized 'branchId' to allow branch-level access.",
-          "params": [
-            {
-              "name": "branchId",
-              "description": "The unique identifier of the branch."
-            },
-            {
-              "name": "studentId",
-              "description": "The unique identifier of the student."
-            }
-          ]
+          "description": "Stores student information. Denormalized branchId allows for branch-level queries."
         }
       },
       {
-        "path": "/branches/{branchId}/students/{studentId}/payments/{paymentId}",
+        "path": "/payments/{paymentId}",
         "definition": {
-          "entityName": "Payment",
           "schema": {
-            "$ref": "#/backend/entities/Payment"
+            "$ref": "#/entities/Payment"
           },
-          "description": "Stores payment information. Includes denormalized 'parentUserId' for authorization independence, and 'branchId' for branch-level queries.",
-          "params": [
-            {
-              "name": "branchId",
-              "description": "The unique identifier of the branch."
-            },
-            {
-              "name": "studentId",
-              "description": "The unique identifier of the student."
-            },
-            {
-              "name": "paymentId",
-              "description": "The unique identifier of the payment."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/branches/{branchId}/students/{studentId}/public_profile",
-        "definition": {
-          "entityName": "Student",
-          "schema": {
-            "$ref": "#/backend/entities/Student"
-          },
-          "description": "Stores public student profile. Includes denormalized 'fullName', 'photoUrl', 'class', and 'branchId' for public read access via QR code.",
-          "params": [
-            {
-              "name": "branchId",
-              "description": "The unique identifier of the branch."
-            },
-            {
-              "name": "studentId",
-              "description": "The unique identifier of the student."
-            }
-          ]
+          "description": "Stores payment information with denormalized studentId, parentUserId, and branchId for efficient and secure querying."
         }
       }
-    ],
-    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability, adhering to the principles of DBAC (Database-Based Access Control) and QAPs (Rules are not Filters). It leverages denormalization to avoid hierarchical authorization dependencies, making security rules simple and robust.\n\n*   **Branches:** Stores branch-specific information.  No specific authorization concerns beyond the scope of super admins.\n*   **Users:** Stores user information, including roles and branch affiliations.  User data is private, accessible to the user and admins.\n*   **Students:** Organized under branches (`/branches/{branchId}/students/{studentId}`).  This structure allows teachers within a branch to manage students. Student documents include `branchId` and `createdByUserId` to enforce branch-level access. The `fullName`, `photoUrl`, `class`, and `branchId` are denormalized into a subcollection `/branches/{branchId}/students/{studentId}/public_profile` to facilitate public-lite access via QR codes without compromising sensitive data. `branchId` denormalization ensures that listing students is limited to the appropriate branch.\n*   **Payments:** Payments are stored as subcollections under students (`/branches/{branchId}/students/{studentId}/payments/{paymentId}`). The `parentUserId` is stored within each payment, ensuring the parent can only access the payments they initiated. Payment records include the `status` field, enabling admins to filter and confirm payments. To enable branch-level payment queries, `branchId` is denormalized into each document. `Payments` also contains `studentId` to allow direct access to payments related to a specific student. Super admins have access to all payments, while branch admins can filter payments by `branchId` and status. The confirmedByAdminUserId tracks which admin confirmed the payment.\n\nThis structure achieves **Authorization Independence** by denormalizing authorization context (e.g., `branchId` in `students` and `payments`). This eliminates the need for `get()` calls in security rules, allowing atomic operations. It supports the required **QAPs** by using structural segregation (e.g., `/branches/{branchId}/students/{studentId}/public_profile` for public data) and membership models (e.g., `parentUserId` in payments). Access control is enforced through path-based ownership and role-based checks, aligning with the DBAC principle."
+    ]
   }
 }
