@@ -68,12 +68,12 @@ function DashboardSidebar({ user, children }: { user: User; children: React.Reac
           <SidebarMenu>
             {accessibleNavItems.map((item) => (
               <SidebarMenuItem key={item.href}>
-                <Link href={item.href} passHref legacyBehavior>
-                  <SidebarMenuButton isActive={pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))} tooltip={{children: item.label}}>
+                <SidebarMenuButton asChild isActive={pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))} tooltip={{children: item.label}}>
+                  <Link href={item.href}>
                     <item.icon />
                     <span>{item.label}</span>
-                  </SidebarMenuButton>
-                </Link>
+                  </Link>
+                </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
@@ -118,22 +118,4 @@ function DashboardSidebar({ user, children }: { user: User; children: React.Reac
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.replace('/login');
-    }
-  }, [user, loading, router]);
-
-  if (loading || !user) {
-    return (
-       <div className="flex h-screen w-full items-center justify-center bg-background">
-        <Logo className="h-16 w-16 animate-pulse text-accent" />
-      </div>
-    );
-  }
-
-  return <DashboardSidebar user={user}>{children}</DashboardSidebar>;
-}
+  const { user, loading }.
