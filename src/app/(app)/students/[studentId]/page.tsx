@@ -29,7 +29,7 @@ export default function StudentDetailPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [passwordVisible, setPasswordVisible] = useState(false);
-  const studentId = params.studentId;
+  const studentId = params.studentId as string;
 
   const studentRef = useMemoFirebase(() => {
     if (!studentId) return null;
