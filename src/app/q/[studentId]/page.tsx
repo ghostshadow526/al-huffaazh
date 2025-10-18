@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Image from 'next/image';
@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Logo } from '@/components/logo';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface Student {
   fullName: string;
