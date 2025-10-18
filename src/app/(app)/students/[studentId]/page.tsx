@@ -29,7 +29,7 @@ export default function StudentDetailPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [passwordVisible, setPasswordVisible] = useState(false);
-  const studentId = params.studentId as string;
+  const studentId = params.studentId;
 
   const studentRef = useMemoFirebase(() => {
     if (!studentId) return null;
@@ -38,26 +38,20 @@ export default function StudentDetailPage() {
 
   const { data: student, isLoading: studentLoading } = useDoc<Student>(studentRef);
 
-  // We derive parentUserId from the successfully loaded student data.
-  const parentUserId = student?.parentUserId;
-
+  // The parent credential ref now depends on the loaded student's parentUserId
   const credentialRef = useMemoFirebase(() => {
-    // This hook will now correctly re-run only when `parentUserId` changes from undefined to a value.
-    if (!parentUserId) return null;
-    return doc(db, 'parentCredentials', parentUserId);
-  }, [parentUserId]); 
+    if (!student?.parentUserId) return null;
+    return doc(db, 'parentCredentials', student.parentUserId);
+  }, [student?.parentUserId]); 
 
   const { data: credential, isLoading: credentialLoading } = useDoc<ParentCredential>(credentialRef);
 
-  // The overall loading state depends on the student loading, and if a parent is linked, the credential loading.
-  const isLoading = studentLoading || (student && student.parentUserId ? credentialLoading : false);
-
-  if (isLoading) {
+  if (studentLoading) {
     return <DetailPageSkeleton />;
   }
 
+  // After loading, if there's no student, then it's a 404.
   if (!student) {
-    // This handles the case where studentLoading is false but student is null (e.g., not found)
     return notFound();
   }
 
@@ -104,7 +98,12 @@ export default function StudentDetailPage() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                {credential && credential.password ? (
+                {credentialLoading ? (
+                    <div className="space-y-4">
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                    </div>
+                ) : credential && credential.password ? (
                 <>
                  <div className="space-y-1">
                     <Label htmlFor="parent-email">Parent Email</Label>
