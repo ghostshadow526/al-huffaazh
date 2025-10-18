@@ -2,8 +2,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import dynamic from 'next/dynamic';
-import type { IDetectedBarcode } from '@yudiel/react-qr-scanner';
 import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,107 +9,48 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
-import { collection, doc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import type { Student } from '../students/student-table';
-
-const QrScanner = dynamic(
-  () => import('@yudiel/react-qr-scanner').then(mod => mod.Scanner),
-  { ssr: false }
-);
-
+import QRAttendanceScanner from '@/components/QRAttendanceScanner';
 
 export default function AttendancePage() {
   const { user } = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const [scannedStudentId, setScannedStudentId] = useState<string | null>(null);
-  const [scannedStudentInfo, setScannedStudentInfo] = useState<Student | null>(null);
+  const [scannedStudent, setScannedStudent] = useState<Student | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showScanner, setShowScanner] = useState(true);
 
-  const handleScan = async (scannedValue: IDetectedBarcode[]) => {
-    const scannedResult = scannedValue[0]?.rawValue;
-    if (scannedResult && !isProcessing && !scannedStudentInfo) {
-      setIsProcessing(true);
-      setShowScanner(false); // Hide scanner after a successful scan
-      
-      let studentId = '';
-      try {
-        // Handle full URLs or just the ID
-        const url = new URL(scannedResult);
-        const pathParts = url.pathname.split('/');
-        studentId = pathParts[pathParts.length - 1];
-      } catch (e) {
-        // If it's not a valid URL, assume the result is the ID itself
-        studentId = scannedResult;
-      }
-      
-      if(studentId) {
-        setScannedStudentId(studentId);
-        try {
-            if (!firestore) {
-                throw new Error("Firestore is not initialized.");
-            }
-            const studentDocRef = doc(firestore, 'students', studentId);
-            const studentDocSnap = await getDoc(studentDocRef);
-            if (studentDocSnap.exists()) {
-                const studentData = studentDocSnap.data() as Student;
-                setScannedStudentInfo(studentData);
-                 toast({
-                    title: 'Student Scanned',
-                    description: `Found ${studentData.fullName}. Please mark as present.`,
-                });
-            } else {
-                toast({
-                    variant: 'destructive',
-                    title: 'Student Not Found',
-                    description: `No student found with ID: ${studentId}`,
-                });
-                resetScanner();
-            }
-        } catch (error: any) {
-            toast({
-                variant: 'destructive',
-                title: 'Error Fetching Student',
-                description: error.message,
-            });
-            resetScanner();
-        } finally {
-            setIsProcessing(false);
-        }
-      } else {
-         toast({
-            variant: 'destructive',
-            title: 'Invalid QR Code',
-            description: 'The scanned QR code does not contain a valid student ID.',
-        });
-        resetScanner();
-        setIsProcessing(false);
-      }
-    }
+  const handleScanSuccess = (student: Student) => {
+    setScannedStudent(student);
+    setShowScanner(false);
+    toast({
+      title: 'Student Scanned',
+      description: `Found ${student.fullName}. Please mark as present.`,
+    });
   };
 
-  const handleError = (error: any) => {
-    console.error('QR Scanner Error:', error);
-    if(error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+  const handleScanError = (message: string) => {
+    if (message.includes('permission') || message.includes('camera')) {
         toast({
             variant: 'destructive',
             title: 'Camera Access Denied',
             description: 'Please enable camera permissions in your browser settings.',
-        })
+        });
     } else {
         toast({
             variant: 'destructive',
             title: 'Scanner Error',
-            description: 'An unexpected error occurred with the camera. Please ensure it is not being used by another application.',
-        })
+            description: message,
+        });
     }
+    resetScanner();
   }
 
 
   const markAsPresent = async () => {
-    if (!scannedStudentId || !user || !user.branchId || !firestore || !scannedStudentInfo) return;
+    if (!scannedStudent || !user || !user.branchId || !firestore) return;
     
     setIsProcessing(true);
     try {
@@ -119,12 +58,12 @@ export default function AttendancePage() {
         const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
         const timeString = today.toTimeString().split(' ')[0]; // HH:MM:SS
         
-        const attendanceId = `${scannedStudentId}_${dateString}`;
+        const attendanceId = `${scannedStudent.id}_${dateString}`;
         const attendanceDocRef = doc(firestore, 'attendance', attendanceId);
 
         await setDoc(attendanceDocRef, {
-            studentId: scannedStudentId,
-            branchId: scannedStudentInfo.branchId,
+            studentId: scannedStudent.id,
+            branchId: scannedStudent.branchId,
             date: dateString,
             time: timeString,
             status: 'present',
@@ -134,7 +73,7 @@ export default function AttendancePage() {
 
         toast({
             title: 'Attendance Marked',
-            description: `${scannedStudentInfo?.fullName || 'Student'} marked as present.`,
+            description: `${scannedStudent.fullName} marked as present.`,
         });
         resetScanner();
 
@@ -150,8 +89,7 @@ export default function AttendancePage() {
   };
 
   const resetScanner = () => {
-    setScannedStudentId(null);
-    setScannedStudentInfo(null);
+    setScannedStudent(null);
     setIsProcessing(false);
     setShowScanner(true);
   }
@@ -177,34 +115,23 @@ export default function AttendancePage() {
                   <CardTitle>QR Code Scanner</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center gap-4">
-                   <div className="w-full max-w-sm aspect-square bg-muted rounded-md overflow-hidden flex items-center justify-center relative">
-                    {showScanner ? (
-                        <QrScanner
-                            onDecode={(result: string) => handleScan([{ rawValue: result }])}
-                            onError={(error: any) => handleError(error)}
-                            containerStyle={{ width: '100%', paddingTop: '100%' }}
-                            videoStyle={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+                   {showScanner ? (
+                        <QRAttendanceScanner 
+                            onScanSuccess={handleScanSuccess} 
+                            onScanError={handleScanError} 
                         />
                     ) : (
-                        <div className="flex items-center space-x-2 p-8 text-center text-muted-foreground">
-                            {isProcessing ? (
-                                <>
-                                    <Loader2 className="h-5 w-5 animate-spin" />
-                                    <span>Processing...</span>
-                                </>
-                            ) : (
-                                <span>Scan complete. Waiting for action.</span>
-                            )}
+                        <div className="flex items-center justify-center p-8 text-center text-muted-foreground w-full max-w-sm aspect-square">
+                           <span>Scan complete. Please see details below.</span>
                         </div>
                     )}
-                 </div>
-                  {scannedStudentInfo && (
+                  {scannedStudent && (
                     <div className="text-center space-y-4">
                         <Alert>
-                            <AlertTitle>Student Found: {scannedStudentInfo.fullName}</AlertTitle>
+                            <AlertTitle>Student Found: {scannedStudent.fullName}</AlertTitle>
                             <AlertDescription>
-                                Class: {scannedStudentInfo.class} <br/>
-                                Admission No: {scannedStudentInfo.admissionNo}
+                                Class: {scannedStudent.class} <br/>
+                                Admission No: {scannedStudent.admissionNo}
                             </AlertDescription>
                         </Alert>
                         <div className='flex gap-2 justify-center'>
