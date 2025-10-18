@@ -9,10 +9,31 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { useFirestore } from '@/firebase';
+import { doc, serverTimestamp, setDoc, collection, query, where } from 'firebase/firestore';
+import { useFirestore, useMemoFirebase } from '@/firebase';
 import type { Student } from '../students/student-table';
 import QRAttendanceScanner from '@/components/QRAttendanceScanner';
+import { useCollection } from '@/firebase/firestore/use-collection';
+import { Combobox } from '@/components/ui/combobox';
+
+function ManualAttendanceForm({ onStudentSelect, students, isLoading }: { onStudentSelect: (studentId: string) => void, students: Student[], isLoading: boolean }) {
+    const studentOptions = students.map(s => ({ value: s.id, label: `${s.fullName} (${s.admissionNo})` }));
+
+    return (
+        <div className="flex flex-col gap-4 items-center">
+            <p className="text-sm text-muted-foreground">Select a student from the list to mark their attendance.</p>
+            <Combobox
+                options={studentOptions}
+                onSelect={value => onStudentSelect(value)}
+                placeholder="Select student..."
+                searchText="Search for a student..."
+                disabled={isLoading}
+            />
+            {isLoading && <p className="text-sm text-muted-foreground">Loading students...</p>}
+        </div>
+    );
+}
+
 
 export default function AttendancePage() {
   const { user } = useAuth();
@@ -22,14 +43,40 @@ export default function AttendancePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showScanner, setShowScanner] = useState(true);
 
-  const handleScanSuccess = (student: Student) => {
+  // Fetch students for manual attendance
+  const studentsQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    if (user.role === 'super_admin') {
+        return collection(firestore, 'students');
+    }
+    if ((user.role === 'branch_admin' || user.role === 'teacher') && user.branchId) {
+        return query(collection(firestore, 'students'), where('branchId', '==', user.branchId));
+    }
+    return null;
+  }, [user, firestore]);
+
+  const { data: students, isLoading: studentsLoading } = useCollection<Student>(studentsQuery);
+
+  const processStudent = (student: Student) => {
     setScannedStudent(student);
-    setShowScanner(false);
+    setShowScanner(false); // Hide scanner/form after selection
     toast({
-      title: 'Student Scanned',
+      title: 'Student Selected',
       description: `Found ${student.fullName}. Please mark as present.`,
     });
+  }
+
+  const handleScanSuccess = (student: Student) => {
+    processStudent(student);
   };
+
+  const handleManualSelect = (studentId: string) => {
+    const student = students?.find(s => s.id === studentId);
+    if (student) {
+        processStudent(student);
+    }
+  };
+
 
   const handleScanError = (message: string) => {
     if (message.includes('permission') || message.includes('camera')) {
@@ -63,6 +110,8 @@ export default function AttendancePage() {
 
         await setDoc(attendanceDocRef, {
             studentId: scannedStudent.id,
+            studentName: scannedStudent.fullName,
+            admissionNo: scannedStudent.admissionNo,
             branchId: scannedStudent.branchId,
             date: dateString,
             time: timeString,
@@ -122,27 +171,9 @@ export default function AttendancePage() {
                         />
                     ) : (
                         <div className="flex items-center justify-center p-8 text-center text-muted-foreground w-full max-w-sm aspect-square">
-                           <span>Scan complete. Please see details below.</span>
+                           <span>Selection complete. Please see details below.</span>
                         </div>
                     )}
-                  {scannedStudent && (
-                    <div className="text-center space-y-4">
-                        <Alert>
-                            <AlertTitle>Student Found: {scannedStudent.fullName}</AlertTitle>
-                            <AlertDescription>
-                                Class: {scannedStudent.class} <br/>
-                                Admission No: {scannedStudent.admissionNo}
-                            </AlertDescription>
-                        </Alert>
-                        <div className='flex gap-2 justify-center'>
-                            <Button onClick={markAsPresent} disabled={isProcessing}>
-                                {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Mark as Present
-                            </Button>
-                             <Button variant="outline" onClick={resetScanner}>Scan Another</Button>
-                        </div>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -151,11 +182,40 @@ export default function AttendancePage() {
                 <CardHeader>
                   <CardTitle>Manual Attendance</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p>Manual attendance entry form will be implemented here.</p>
+                <CardContent className="flex flex-col items-center gap-4">
+                  {showScanner ? (
+                        <ManualAttendanceForm 
+                            onStudentSelect={handleManualSelect} 
+                            students={students || []}
+                            isLoading={studentsLoading}
+                        />
+                    ) : (
+                        <div className="flex items-center justify-center p-8 text-center text-muted-foreground w-full">
+                           <span>Selection complete. Please see details below.</span>
+                        </div>
+                    )}
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {scannedStudent && (
+              <div className="text-center space-y-4 mt-6">
+                  <Alert>
+                      <AlertTitle>Student Found: {scannedStudent.fullName}</AlertTitle>
+                      <AlertDescription>
+                          Class: {scannedStudent.class} <br/>
+                          Admission No: {scannedStudent.admissionNo}
+                      </AlertDescription>
+                  </Alert>
+                  <div className='flex gap-2 justify-center'>
+                      <Button onClick={markAsPresent} disabled={isProcessing}>
+                          {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Mark as Present
+                      </Button>
+                        <Button variant="outline" onClick={resetScanner}>Select Another</Button>
+                  </div>
+              </div>
+            )}
           </Tabs>
         </CardContent>
       </Card>

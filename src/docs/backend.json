@@ -242,6 +242,8 @@
       "description": "Represents a student's attendance record for a specific day.",
       "properties": {
         "studentId": { "type": "string", "description": "Reference to the Student." },
+        "studentName": { "type": "string", "description": "Denormalized name of the student." },
+        "admissionNo": { "type": "string", "description": "Denormalized admission number of the student." },
         "branchId": { "type": "string", "description": "Denormalized branchId for querying." },
         "date": { "type": "string", "format": "date", "description": "The date of the attendance record in YYYY-MM-DD format." },
         "time": { "type": "string", "format": "time", "description": "The time the attendance was marked." },
@@ -249,7 +251,7 @@
         "markedBy": { "type": "string", "description": "Reference to the User (teacher) who marked the attendance." },
         "timestamp": { "type": "string", "format": "date-time", "description": "Server timestamp of the record."}
       },
-      "required": ["studentId", "branchId", "date", "time", "status", "markedBy", "timestamp"]
+      "required": ["studentId", "studentName", "admissionNo", "branchId", "date", "time", "status", "markedBy", "timestamp"]
     },
     "Subject": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -257,10 +259,11 @@
       "type": "object",
       "description": "Represents a subject taught in the school.",
       "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the subject." },
         "name": { "type": "string", "description": "Name of the subject (e.g., Mathematics, English, Chemistry)." },
-        "category": { "type": "string", "enum": ["primary", "secondary", "general"], "description": "Category of the subject." }
+        "category": { "type": "string", "enum": ["core", "islamic", "general"], "description": "Category of the subject." }
       },
-      "required": ["name", "category"]
+      "required": ["id", "name", "category"]
     },
     "Term": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -268,11 +271,10 @@
       "type": "object",
       "description": "Represents a school term (e.g., First Term 2024/2025).",
       "properties": {
-        "name": { "type": "string", "description": "Name of the term." },
-        "startDate": { "type": "string", "format": "date" },
-        "endDate": { "type": "string", "format": "date" }
+        "id": { "type": "string", "description": "Unique identifier for the term." },
+        "name": { "type": "string", "description": "Name of the term." }
       },
-      "required": ["name"]
+      "required": ["id", "name"]
     },
     "Result": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -281,14 +283,17 @@
       "description": "Represents a student's result for a specific subject in a term.",
       "properties": {
         "studentId": { "type": "string" },
+        "studentName": { "type": "string", "description": "Denormalized student name for display." },
         "termId": { "type": "string" },
+        "termName": { "type": "string", "description": "Denormalized term name for display." },
         "subjectId": { "type": "string" },
+        "subjectName": { "type": "string", "description": "Denormalized subject name for display." },
         "branchId": { "type": "string" },
         "marks": { "type": "number", "minimum": 0, "maximum": 100 },
         "recordedBy": { "type": "string", "description": "Reference to the User (teacher) who recorded the result." },
         "recordedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["studentId", "termId", "subjectId", "branchId", "marks", "recordedBy", "recordedAt"]
+      "required": ["studentId", "termId", "subjectId", "branchId", "marks", "recordedBy", "recordedAt", "studentName", "termName", "subjectName"]
     }
   },
   "auth": {
@@ -368,7 +373,7 @@
         "path": "/results/{resultId}",
         "definition": {
           "schema": { "$ref": "#/entities/Result" },
-          "description": "Stores student results for each subject and term."
+          "description": "Stores student results for each subject and term. The ID is a composite of studentId, termId, and subjectId."
         }
       }
     ]
