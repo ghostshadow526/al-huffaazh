@@ -39,6 +39,7 @@ function getInitials(name?: string | null) {
 
 const navItems: { href: string; label: string; icon: LucideIcon; roles: UserRole[] }[] = [
     { href: "/dashboard", label: "Dashboard", icon: Home, roles: ['super_admin', 'branch_admin', 'teacher', 'parent'] },
+    { href: "/students", label: "Students", icon: Users, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/manage-students", label: "Manage Students", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/students/add", label: "Add Student", icon: UserPlus, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/payments", label: "Payments", icon: CreditCard, roles: ['super_admin', 'branch_admin', 'parent'] },
