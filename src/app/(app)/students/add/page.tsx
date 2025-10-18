@@ -40,6 +40,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Label } from '@/components/ui/label';
 
 
 const formSchema = z.object({
@@ -125,6 +126,7 @@ export default function AddStudentPage() {
     setIsLoading(true);
 
     const tempApp = mainAuth.app;
+    const { getAuth } = await import('firebase/auth');
     const tempAuth = getAuth(tempApp);
     
     try {
@@ -415,5 +417,3 @@ export default function AddStudentPage() {
       </>
   );
 }
-
-    
