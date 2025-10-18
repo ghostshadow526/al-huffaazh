@@ -221,7 +221,7 @@ export default function AddStudentPage() {
         });
         
         // Don't redirect immediately, show credentials first.
-        // router.push('/students');
+        // router.push('/manage-students');
 
     } catch (error: any) {
         console.error("Error during student creation:", error);
@@ -479,7 +479,7 @@ export default function AddStudentPage() {
             </div>
           </div>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={() => router.push('/students')}>Continue</AlertDialogAction>
+            <AlertDialogAction onClick={() => router.push('/manage-students')}>Continue</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

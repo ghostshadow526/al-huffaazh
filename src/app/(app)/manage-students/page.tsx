@@ -8,14 +8,14 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/components/auth-provider';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useMemoFirebase } from '@/firebase/provider';
-import type { Student } from './student-table';
+import type { Student } from '../students/student-table';
 
 import { PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { StudentTable } from './student-table';
+import { StudentTable } from '../students/student-table';
 
-export default function StudentsPage() {
+export default function ManageStudentsPage() {
   const { user } = useAuth();
 
   const studentsQuery = useMemoFirebase(() => {
@@ -39,9 +39,9 @@ export default function StudentsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between space-y-2">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Students</h2>
+          <h2 className="text-3xl font-bold tracking-tight">Manage Students</h2>
           <p className="text-muted-foreground">
-            A list of all students in your view.
+            Here you can view and manage student records.
           </p>
         </div>
         {canAddStudent && (
@@ -57,7 +57,7 @@ export default function StudentsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Student List</CardTitle>
-          <CardDescription>This is a list of all students.</CardDescription>
+          <CardDescription>A list of all students in your view.</CardDescription>
         </CardHeader>
         <CardContent>
           <StudentTable columns={['photoUrl', 'fullName', 'class', 'admissionNo', 'branchId', 'parentEmail', 'actions']} data={students || []} isLoading={isLoading} />
