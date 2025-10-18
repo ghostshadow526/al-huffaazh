@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,11 +12,7 @@ import { Loader2 } from 'lucide-react';
 import { collection, doc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import type { Student } from '../students/student-table';
-
-// QR Reader - dynamically import to avoid SSR issues
-import dynamic from 'next/dynamic';
-
-const QrScanner = dynamic(() => import('react-qr-scanner'), { ssr: false });
+import { QrScanner } from '@yudiel/react-qr-scanner';
 
 export default function AttendancePage() {
   const { user } = useAuth();
@@ -26,29 +22,22 @@ export default function AttendancePage() {
   const [scannedStudentInfo, setScannedStudentInfo] = useState<Student | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showScanner, setShowScanner] = useState(true);
-  const [hasCameraPermission, setHasCameraPermission] = useState(false);
-  const [isClient, setIsClient] = useState(false);
 
-  useEffect(() => {
-    setIsClient(true);
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(() => setHasCameraPermission(true))
-      .catch(() => {
-        setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Camera Access Denied',
-          description: 'Please enable camera permissions in your browser settings.',
-        });
-      });
-  }, [toast]);
-
-  const handleScan = async (result: any) => {
+  const handleScan = async (result: string) => {
     if (result && !isProcessing && !scannedStudentInfo) {
       setIsProcessing(true);
       setShowScanner(false); // Hide scanner after a successful scan
-      const urlParts = result?.text.split('/');
-      const studentId = urlParts?.pop();
+      
+      let studentId = '';
+      try {
+        // Handle full URLs or just the ID
+        const url = new URL(result);
+        const pathParts = url.pathname.split('/');
+        studentId = pathParts[pathParts.length - 1];
+      } catch (e) {
+        // If it's not a valid URL, assume the result is the ID itself
+        studentId = result;
+      }
       
       if(studentId) {
         setScannedStudentId(studentId);
@@ -84,7 +73,7 @@ export default function AttendancePage() {
          toast({
             variant: 'destructive',
             title: 'Invalid QR Code',
-            description: 'The scanned QR code does not contain a valid student URL.',
+            description: 'The scanned QR code does not contain a valid student ID.',
         });
         resetScanner();
         setIsProcessing(false);
@@ -93,6 +82,7 @@ export default function AttendancePage() {
   };
 
   const handleError = (error: any) => {
+    console.error('QR Scanner Error:', error);
     if(error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         toast({
             variant: 'destructive',
@@ -100,11 +90,10 @@ export default function AttendancePage() {
             description: 'Please enable camera permissions in your browser settings.',
         })
     } else {
-        console.error('QR Scanner Error:', error);
         toast({
             variant: 'destructive',
             title: 'Scanner Error',
-            description: 'An unexpected error occurred with the camera.',
+            description: 'An unexpected error occurred with the camera. Please ensure it is not being used by another application.',
         })
     }
   }
@@ -178,11 +167,12 @@ export default function AttendancePage() {
                 </CardHeader>
                 <CardContent className="flex flex-col items-center gap-4">
                    <div className="w-full max-w-sm aspect-square bg-muted rounded-md overflow-hidden flex items-center justify-center relative">
-                    {isClient && hasCameraPermission && showScanner ? (
+                    {showScanner ? (
                         <QrScanner
-                            onScan={handleScan}
+                            onDecode={handleScan}
                             onError={handleError}
-                            style={{ width: '100%' }}
+                            containerStyle={{ width: '100%', paddingTop: '100%' }}
+                            videoStyle={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
                         />
                     ) : (
                         <div className="flex items-center space-x-2 p-8 text-center text-muted-foreground">
@@ -191,10 +181,8 @@ export default function AttendancePage() {
                                     <Loader2 className="h-5 w-5 animate-spin" />
                                     <span>Processing...</span>
                                 </>
-                            ) : !hasCameraPermission ? (
-                                <span>Camera access denied or not available.</span>
                             ) : (
-                                <span>Scan complete.</span>
+                                <span>Scan complete. Waiting for action.</span>
                             )}
                         </div>
                     )}
