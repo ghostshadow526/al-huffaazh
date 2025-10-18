@@ -4,9 +4,8 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Logo } from './logo';
-import { useUser as useFirebaseUser } from '@/firebase';
+import { useUser as useFirebaseUser, useFirestore } from '@/firebase';
 
 export type UserRole = 'super_admin' | 'branch_admin' | 'teacher' | 'parent';
 
@@ -27,10 +26,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const { user: firebaseUser, isUserLoading } = useFirebaseUser();
+  const db = useFirestore();
 
   useEffect(() => {
     const handleUser = async () => {
-      if (firebaseUser) {
+      if (firebaseUser && db) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
@@ -61,7 +61,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     if (!isUserLoading) {
       handleUser();
     }
-  }, [firebaseUser, isUserLoading]);
+  }, [firebaseUser, isUserLoading, db]);
 
   if (loading) {
     return (
