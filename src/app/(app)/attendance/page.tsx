@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import dynamic from 'next/dynamic';
 import type { IDetectedBarcode } from '@yudiel/react-qr-scanner';
 import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
@@ -13,7 +14,11 @@ import { Loader2 } from 'lucide-react';
 import { collection, doc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import type { Student } from '../students/student-table';
-import { Scanner } from '@yudiel/react-qr-scanner';
+
+const QrScanner = dynamic(
+  () => import('@yudiel/react-qr-scanner').then(mod => mod.Scanner),
+  { ssr: false }
+);
 
 
 export default function AttendancePage() {
@@ -25,20 +30,21 @@ export default function AttendancePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showScanner, setShowScanner] = useState(true);
 
-  const handleScan = async (scannedValue: string) => {
-    if (scannedValue && !isProcessing && !scannedStudentInfo) {
+  const handleScan = async (scannedValue: IDetectedBarcode[]) => {
+    const scannedResult = scannedValue[0]?.rawValue;
+    if (scannedResult && !isProcessing && !scannedStudentInfo) {
       setIsProcessing(true);
       setShowScanner(false); // Hide scanner after a successful scan
       
       let studentId = '';
       try {
         // Handle full URLs or just the ID
-        const url = new URL(scannedValue);
+        const url = new URL(scannedResult);
         const pathParts = url.pathname.split('/');
         studentId = pathParts[pathParts.length - 1];
       } catch (e) {
         // If it's not a valid URL, assume the result is the ID itself
-        studentId = scannedValue;
+        studentId = scannedResult;
       }
       
       if(studentId) {
@@ -173,9 +179,9 @@ export default function AttendancePage() {
                 <CardContent className="flex flex-col items-center gap-4">
                    <div className="w-full max-w-sm aspect-square bg-muted rounded-md overflow-hidden flex items-center justify-center relative">
                     {showScanner ? (
-                        <Scanner
-                            onResult={(result: string) => handleScan(result)}
-                            onError={handleError}
+                        <QrScanner
+                            onDecode={(result: string) => handleScan([{ rawValue: result }])}
+                            onError={(error: any) => handleError(error)}
                             containerStyle={{ width: '100%', paddingTop: '100%' }}
                             videoStyle={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
                         />
