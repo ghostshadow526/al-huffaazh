@@ -53,7 +53,22 @@ interface Branch {
   name: string;
 }
 
-const BRANCH_NAMES = ["Ogbomosho", "Saminaka", "Keffi", "Jos"];
+const BRANCH_NAMES = [
+    "Jos - Dutse Uku",
+    "Naraguta",
+    "Saminaka",
+    "Lere",
+    "Dokan Lere",
+    "Mariri",
+    "Katchia",
+    "Kayarda",
+    "Toro",
+    "Marwa",
+    "Nye (Kogi State)",
+    "Gambare (Ogbomosho)",
+    "Hamama (Ogbomosho)",
+    "Sakee"
+];
 
 export default function InviteUserPage() {
   const { user: currentUser } = useAuth();
