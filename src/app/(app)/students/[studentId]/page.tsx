@@ -2,11 +2,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { doc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { notFound, useParams } from 'next/navigation';
-import { useAuth } from '@/components/auth-provider';
-import { useDoc } from '@/firebase/firestore/use-doc';
-import { useMemoFirebase, useFirestore } from '@/firebase/provider';
+import Image from 'next/image';
+import { useFirestore } from '@/firebase';
+import type { Student } from '../student-table';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,7 +16,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Copy, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { Student } from '../student-table';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface ParentCredential {
   email: string;
@@ -25,61 +27,57 @@ interface ParentCredential {
 
 export default function StudentDetailPage() {
   const params = useParams<{ studentId: string }>();
-  const { user } = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const [passwordVisible, setPasswordVisible] = useState(false);
-  const studentId = params.studentId;
-
-  const studentRef = useMemoFirebase(() => {
-    if (!studentId || !firestore) return null;
-    return doc(firestore, 'students', studentId);
-  }, [studentId, firestore]);
-
-  const { data: student, isLoading: studentLoading, error: studentError } = useDoc<Student>(studentRef);
-
-  // The parent credential ref now depends on the loaded student's parentUserId
-  const credentialRef = useMemoFirebase(() => {
-    if (!student?.parentUserId || !firestore) return null;
-    return doc(firestore, 'parentCredentials', student.parentUserId);
-  }, [student?.parentUserId, firestore]); 
-
-  const { data: credential, isLoading: credentialLoading } = useDoc<ParentCredential>(credentialRef);
-
-  if (studentLoading) {
-    return <DetailPageSkeleton />;
-  }
-
-  // After loading, if there's no student document, then it's a 404.
-  if (!student && !studentLoading) {
-    if (studentError) {
-       return (
-        <Alert variant="destructive">
-            <AlertTitle>Error Loading Student</AlertTitle>
-            <AlertDescription>There was a problem loading student data. It could be a network or permission issue.</AlertDescription>
-        </Alert>
-       );
-    }
-    notFound();
-  }
   
-  if (!student) {
-      return <DetailPageSkeleton />; // Still loading or preparing to show notFound
-  }
+  const [student, setStudent] = useState<Student | null>(null);
+  const [credential, setCredential] = useState<ParentCredential | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [passwordVisible, setPasswordVisible] = useState(false);
 
-  // A user can only view students in their own branch (unless super_admin)
-  const canViewStudent = user?.role === 'super_admin' || (student && user?.branchId === student.branchId);
+  useEffect(() => {
+    const studentId = params.studentId;
+    if (!studentId || !firestore) {
+      setIsLoading(false);
+      return;
+    }
 
-  if (!canViewStudent) {
-    return (
-        <Alert variant="destructive">
-            <AlertTitle>Access Denied</AlertTitle>
-            <AlertDescription>You do not have permission to view this student's details.</AlertDescription>
-        </Alert>
-    );
-  }
+    const fetchStudentData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const studentDocRef = doc(firestore, 'students', studentId);
+        const studentDocSnap = await getDoc(studentDocRef);
 
-  const canViewCredentials = user?.role === 'super_admin' || user?.role === 'branch_admin' || user?.role === 'teacher';
+        if (!studentDocSnap.exists()) {
+          setIsLoading(false);
+          notFound();
+          return;
+        }
+
+        const studentData = { id: studentDocSnap.id, ...studentDocSnap.data() } as Student;
+        setStudent(studentData);
+
+        // Now fetch parent credentials if parentUserId exists
+        if (studentData.parentUserId) {
+            const credDocRef = doc(firestore, 'parentCredentials', studentData.parentUserId);
+            const credDocSnap = await getDoc(credDocRef);
+            if (credDocSnap.exists()) {
+                setCredential(credDocSnap.data() as ParentCredential);
+            }
+        }
+
+      } catch (err: any) {
+        console.error("Error fetching student data:", err);
+        setError("Failed to load student data. It could be a permission or network issue.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStudentData();
+  }, [params.studentId, firestore]);
 
   const copyToClipboard = (text: string | undefined) => {
     if (!text) return;
@@ -87,86 +85,106 @@ export default function StudentDetailPage() {
     toast({ title: 'Copied!', description: 'Credentials copied to clipboard.' });
   };
 
+  if (isLoading) {
+    return <DetailPageSkeleton />;
+  }
+
+  if (error) {
+    return (
+     <Alert variant="destructive">
+         <AlertTitle>Error</AlertTitle>
+         <AlertDescription>{error}</AlertDescription>
+     </Alert>
+    );
+  }
+
+  if (!student) {
+    // This case should be handled by notFound() in useEffect, but as a fallback:
+    return notFound();
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
        <Card>
           <CardHeader>
-            <CardTitle>Student Information</CardTitle>
-            <CardDescription>Detailed information for {student.fullName}.</CardDescription>
+            <div className="flex items-center gap-4">
+                <Avatar className="w-24 h-24 border-2">
+                    <AvatarImage src={student.photoUrl} alt={student.fullName} />
+                    <AvatarFallback>{student.fullName.split(' ').map(n => n[0]).join('').toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div>
+                    <CardTitle className="text-3xl">{student.fullName}</CardTitle>
+                    <CardDescription>Detailed information for admission number: {student.admissionNo}</CardDescription>
+                </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6 border-t">
               <InfoRow label="Full Name" value={student.fullName} />
               <InfoRow label="Admission Number" value={student.admissionNo} />
               <InfoRow label="Class" value={student.class} />
+              <InfoRow label="Date of Birth" value={format(new Date(student.dob), 'MMMM d, yyyy')} />
               <InfoRow label="Branch ID" value={student.branchId} />
-              {/* Add more student details here as needed */}
+              <InfoRow label="Parent's Email" value={student.parentEmail} />
           </CardContent>
       </Card>
       
-      {canViewCredentials && (
-        <Card>
-            <CardHeader>
-                <CardTitle>Parent Login Credentials</CardTitle>
-                <CardDescription>
-                These are the temporary login details for the student's parent. They expire after 30 days.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                {credentialLoading ? (
-                    <div className="space-y-4">
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-10 w-full" />
-                    </div>
-                ) : credential && credential.password ? (
-                <>
-                 <div className="space-y-1">
-                    <Label htmlFor="parent-email">Parent Email</Label>
-                    <div className="flex items-center gap-2">
-                        <Input id="parent-email" value={credential.email} readOnly />
-                        <Button variant="outline" size="icon" onClick={() => copyToClipboard(credential.email)}>
-                            <Copy className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
-                 <div className="space-y-1">
-                    <Label htmlFor="parent-password">Temporary Password</Label>
-                     <div className="flex items-center gap-2">
-                        <Input id="parent-password" type={passwordVisible ? 'text' : 'password'} value={credential.password} readOnly />
-                        <Button variant="outline" size="icon" onClick={() => setPasswordVisible(!passwordVisible)}>
-                            {passwordVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                        <Button variant="outline" size="icon" onClick={() => copyToClipboard(credential.password || '')}>
-                            <Copy className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
-                </>
-                ) : (
-                    <Alert>
-                        <AlertTitle>Credentials Status</AlertTitle>
-                        <AlertDescription>
-                            { student.parentUserId ? 
-                            'The temporary credentials for this parent have expired or are no longer available. If the parent cannot log in, their password may need to be reset.' : 
-                            'No parent account is linked to this student.'
-                            }
-                        </AlertDescription>
-                    </Alert>
-                )}
-            </CardContent>
-            <CardFooter>
-                 <p className="text-xs text-muted-foreground">
-                    Note: Temporary passwords expire for security reasons.
-                 </p>
-            </CardFooter>
-        </Card>
-      )}
+      <Card>
+          <CardHeader>
+              <CardTitle>Parent Login Credentials</CardTitle>
+              <CardDescription>
+              These are the temporary login details for the student's parent.
+              </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+              {credential && credential.password ? (
+              <>
+               <div className="space-y-1">
+                  <Label htmlFor="parent-email">Parent Email</Label>
+                  <div className="flex items-center gap-2">
+                      <Input id="parent-email" value={credential.email} readOnly />
+                      <Button variant="outline" size="icon" onClick={() => copyToClipboard(credential.email)}>
+                          <Copy className="h-4 w-4" />
+                      </Button>
+                  </div>
+              </div>
+               <div className="space-y-1">
+                  <Label htmlFor="parent-password">Temporary Password</Label>
+                   <div className="flex items-center gap-2">
+                      <Input id="parent-password" type={passwordVisible ? 'text' : 'password'} value={credential.password} readOnly />
+                      <Button variant="outline" size="icon" onClick={() => setPasswordVisible(!passwordVisible)}>
+                          {passwordVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                      <Button variant="outline" size="icon" onClick={() => copyToClipboard(credential.password || '')}>
+                          <Copy className="h-4 w-4" />
+                      </Button>
+                  </div>
+              </div>
+              </>
+              ) : (
+                  <Alert>
+                      <AlertTitle>Credentials Status</AlertTitle>
+                      <AlertDescription>
+                          { student.parentUserId ? 
+                          'The temporary credentials for this parent have expired or are no longer available. If the parent cannot log in, their password may need to be reset.' : 
+                          'No parent account is linked to this student.'
+                          }
+                      </AlertDescription>
+                  </Alert>
+              )}
+          </CardContent>
+          <CardFooter>
+               <p className="text-xs text-muted-foreground">
+                  Note: Temporary passwords are created during student registration and may have expired.
+               </p>
+          </CardFooter>
+      </Card>
     </div>
   );
 }
 
 function InfoRow({ label, value }: { label: string; value: string | undefined }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-2 border-b">
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <p className="text-sm font-semibold text-foreground">{value || 'N/A'}</p>
     </div>
@@ -178,10 +196,16 @@ function DetailPageSkeleton() {
         <div className="max-w-4xl mx-auto space-y-6">
             <Card>
                 <CardHeader>
-                    <Skeleton className="h-8 w-1/2" />
-                    <Skeleton className="h-4 w-3/4" />
+                    <div className="flex items-center gap-4">
+                        <Skeleton className="w-24 h-24 rounded-full" />
+                        <div className='space-y-2'>
+                            <Skeleton className="h-8 w-48" />
+                            <Skeleton className="h-4 w-64" />
+                        </div>
+                    </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 pt-6 border-t">
+                    <Skeleton className="h-6 w-full" />
                     <Skeleton className="h-6 w-full" />
                     <Skeleton className="h-6 w-full" />
                     <Skeleton className="h-6 w-full" />
