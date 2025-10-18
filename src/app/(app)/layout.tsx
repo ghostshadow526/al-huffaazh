@@ -30,7 +30,7 @@ import {
   LucideIcon,
   ClipboardList,
 } from 'lucide-react';
-import { auth } from '@/lib/firebase';
+import { useAuth as useFirebaseAuth } from '@/firebase';
 
 function getInitials(name?: string | null) {
   if (!name) return "U";
@@ -50,9 +50,12 @@ const navItems: { href: string; label: string; icon: LucideIcon; roles: UserRole
 function DashboardSidebar({ user, children }: { user: User; children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const auth = useFirebaseAuth();
 
   const handleLogout = async () => {
-    await auth.signOut();
+    if (auth) {
+      await auth.signOut();
+    }
     router.push('/');
   };
   

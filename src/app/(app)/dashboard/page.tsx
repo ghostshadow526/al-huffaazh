@@ -3,41 +3,41 @@
 import { useAuth } from "@/components/auth-provider";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Users, CreditCard } from "lucide-react";
-import { useMemoFirebase } from "@/firebase/provider";
+import { useMemoFirebase, useFirestore } from "@/firebase/provider";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { useCollection } from "@/firebase/firestore/use-collection";
 import { useEffect, useState } from "react";
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const firestore = useFirestore();
   const [studentCount, setStudentCount] = useState(0);
   const [pendingPayments, setPendingPayments] = useState(0);
   const [loadingStats, setLoadingStats] = useState(true);
 
   const studentsQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user || !firestore) return null;
     if (user.role === 'super_admin') {
-      return collection(db, 'students');
+      return collection(firestore, 'students');
     }
-    if (user.role === 'branch_admin' || user.role === 'teacher') {
-      return query(collection(db, 'students'), where('branchId', '==', user.branchId));
+    if ((user.role === 'branch_admin' || user.role === 'teacher') && user.branchId) {
+      return query(collection(firestore, 'students'), where('branchId', '==', user.branchId));
     }
     // Parents don't see student list this way
     return null;
-  }, [user]);
+  }, [user, firestore]);
 
   const paymentsQuery = useMemoFirebase(() => {
-    if (!user) return null;
-    let q = query(collection(db, 'payments'), where('status', '==', 'pending'));
-    if (user.role === 'branch_admin' || user.role === 'parent') {
+    if (!user || !firestore) return null;
+    let q = query(collection(firestore, 'payments'), where('status', '==', 'pending'));
+    if ((user.role === 'branch_admin' || user.role === 'parent') && user.branchId) {
         q = query(q, where('branchId', '==', user.branchId));
     }
     // Teachers don't see payments. Super admin sees all.
     if (user.role === 'teacher') return null;
 
     return q;
-  }, [user]);
+  }, [user, firestore]);
 
 
   const { data: students, isLoading: studentsLoading } = useCollection(studentsQuery);
@@ -111,5 +111,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    

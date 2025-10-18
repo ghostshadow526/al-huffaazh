@@ -1,11 +1,12 @@
+
 "use client";
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { Logo } from './logo';
+import { useUser as useFirebaseUser } from '@/firebase';
 
 export type UserRole = 'super_admin' | 'branch_admin' | 'teacher' | 'parent';
 
@@ -25,19 +26,20 @@ const AuthContext = createContext<AuthContextType>({ user: null, loading: true }
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user: firebaseUser, isUserLoading } = useFirebaseUser();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const handleUser = async () => {
       if (firebaseUser) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
           setUser({ ...firebaseUser, ...userDoc.data() } as User);
         } else {
-          // This logic is for the first time a super_admin signs in.
-          // In a real app, you'd have a more secure way to assign the first admin.
-          const isFirstUser = (await getDoc(doc(db, 'system', 'meta'))).data()?.userCount === undefined;
-          if (isFirstUser) {
+           const superAdminEmail = "alhuffazh@gmail.com";
+           const adminToken = "4MPWGavMNqZLtdUGqtWvUYY0xDL2";
+
+           if(firebaseUser.email === superAdminEmail && firebaseUser.uid === adminToken) {
               const superAdminUser = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
@@ -45,20 +47,21 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 role: 'super_admin',
               };
               await setDoc(userDocRef, superAdminUser);
-              await setDoc(doc(db, 'system', 'meta'), { userCount: 1 });
               setUser({ ...firebaseUser, ...superAdminUser });
-          } else {
-            setUser(firebaseUser); // A user with no role
-          }
+           } else {
+             setUser(firebaseUser as User); 
+           }
         }
       } else {
         setUser(null);
       }
       setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
-  }, []);
+    if (!isUserLoading) {
+      handleUser();
+    }
+  }, [firebaseUser, isUserLoading]);
 
   if (loading) {
     return (

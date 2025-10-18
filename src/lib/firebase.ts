@@ -1,16 +1,10 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore }from "firebase/firestore";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyB_l9UXQ5Kdy63Kg_0QcGu2U1TyXmOHqo0",
-  authDomain: "al-huffaazh.firebaseapp.com",
-  projectId: "al-huffaazh",
-  storageBucket: "al-huffaazh.firebasestorage.app",
-  messagingSenderId: "815792019917",
-  appId: "1:815792019917:web:da52259f1e94dd78378c84",
-  measurementId: "G-22XT0NZKLM"
-};
+'use client';
+
+import { getApp, getApps, initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { firebaseConfig } from '@/firebase/config';
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();

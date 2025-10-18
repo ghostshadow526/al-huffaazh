@@ -1,11 +1,12 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
+import { useAuth as useFirebaseAuth } from "@/firebase";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +41,7 @@ export function LoginForm({ role }: { role: Role }) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const auth = useFirebaseAuth();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -50,6 +52,7 @@ export function LoginForm({ role }: { role: Role }) {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!auth) return;
     setIsLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);

@@ -4,10 +4,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { collection, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useAuth, User } from '@/components/auth-provider';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { useMemoFirebase } from '@/firebase/provider';
+import { useMemoFirebase, useFirestore } from '@/firebase/provider';
 
 import { PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,17 +15,18 @@ import { UserTable } from './user-table';
 
 export default function UsersPage() {
   const { user } = useAuth();
+  const firestore = useFirestore();
 
   const usersQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user || !firestore) return null;
     if (user.role === 'super_admin') {
-      return collection(db, 'users');
+      return collection(firestore, 'users');
     }
     if (user.role === 'branch_admin' && user.branchId) {
-      return query(collection(db, 'users'), where('branchId', '==', user.branchId));
+      return query(collection(firestore, 'users'), where('branchId', '==', user.branchId));
     }
     return null;
-  }, [user]);
+  }, [user, firestore]);
 
   const { data: users, isLoading } = useCollection<User>(usersQuery);
 

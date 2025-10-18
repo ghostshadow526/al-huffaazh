@@ -4,10 +4,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { collection, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/components/auth-provider';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { useMemoFirebase } from '@/firebase/provider';
+import { useMemoFirebase, useFirestore } from '@/firebase/provider';
 import type { Student } from '../students/student-table';
 
 import { PlusCircle } from 'lucide-react';
@@ -17,19 +16,20 @@ import { StudentTable } from '../students/student-table';
 
 export default function ManageStudentsPage() {
   const { user } = useAuth();
+  const firestore = useFirestore();
 
   const studentsQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    if (!user || !firestore) return null;
     // Super admin can see all students
     if (user.role === 'super_admin') {
-      return collection(db, 'students');
+      return collection(firestore, 'students');
     }
     // Branch admin and teachers can see students from their branch
     if ((user.role === 'branch_admin' || user.role === 'teacher') && user.branchId) {
-      return query(collection(db, 'students'), where('branchId', '==', user.branchId));
+      return query(collection(firestore, 'students'), where('branchId', '==', user.branchId));
     }
     return null;
-  }, [user]);
+  }, [user, firestore]);
 
   const { data: students, isLoading } = useCollection<Student>(studentsQuery);
   const canAddStudent = user?.role === 'teacher' || user?.role === 'branch_admin' || user?.role === 'super_admin';

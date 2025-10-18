@@ -3,7 +3,6 @@
 
 import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import Image from 'next/image';
 import { notFound, useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -12,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Logo } from '@/components/logo';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useFirestore } from '@/firebase';
 
 interface Student {
   fullName: string;
@@ -22,6 +22,7 @@ interface Student {
   address: string;
   gender: string;
   qrImageUrl?: string;
+  branchId?: string;
 }
 
 interface Branch {
@@ -35,17 +36,18 @@ export default function StudentIdCardPage() {
   const [student, setStudent] = useState<Student | null>(null);
   const [branch, setBranch] = useState<Branch | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const firestore = useFirestore();
 
   useEffect(() => {
     const studentId = params.studentId;
-    if (!studentId) {
+    if (!studentId || !firestore) {
         setIsLoading(false);
         return;
     }
 
     const fetchStudentData = async () => {
       try {
-        const studentDocRef = doc(db, 'students', studentId);
+        const studentDocRef = doc(firestore, 'students', studentId);
         const studentDocSnap = await getDoc(studentDocRef);
 
         if (!studentDocSnap.exists()) {
@@ -56,7 +58,7 @@ export default function StudentIdCardPage() {
         setStudent(studentData);
         
         if (studentData.branchId) {
-            const branchDocRef = doc(db, 'branches', studentData.branchId);
+            const branchDocRef = doc(firestore, 'branches', studentData.branchId);
             const branchDocSnap = await getDoc(branchDocRef);
             if (branchDocSnap.exists()) {
                 setBranch(branchDocSnap.data() as Branch);
@@ -71,7 +73,7 @@ export default function StudentIdCardPage() {
     };
 
     fetchStudentData();
-  }, [params.studentId]);
+  }, [params.studentId, firestore]);
 
   if (isLoading) {
     return <IdCardSkeleton />;
@@ -166,4 +168,3 @@ function IdCardSkeleton() {
     </div>
   );
 }
-    

@@ -3,11 +3,10 @@
 
 import { useState, useEffect } from 'react';
 import { doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { notFound, useParams } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { useDoc } from '@/firebase/firestore/use-doc';
-import { useMemoFirebase } from '@/firebase/provider';
+import { useMemoFirebase, useFirestore } from '@/firebase/provider';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,49 +26,57 @@ interface ParentCredential {
 export default function StudentDetailPage() {
   const params = useParams<{ studentId: string }>();
   const { user } = useAuth();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const [passwordVisible, setPasswordVisible] = useState(false);
   const studentId = params.studentId;
 
   const studentRef = useMemoFirebase(() => {
-    if (!studentId) return null;
-    return doc(db, 'students', studentId);
-  }, [studentId]);
+    if (!studentId || !firestore) return null;
+    return doc(firestore, 'students', studentId);
+  }, [studentId, firestore]);
 
   const { data: student, isLoading: studentLoading, error: studentError } = useDoc<Student>(studentRef);
 
   // The parent credential ref now depends on the loaded student's parentUserId
   const credentialRef = useMemoFirebase(() => {
-    if (!student?.parentUserId) return null;
-    return doc(db, 'parentCredentials', student.parentUserId);
-  }, [student?.parentUserId]); 
+    if (!student?.parentUserId || !firestore) return null;
+    return doc(firestore, 'parentCredentials', student.parentUserId);
+  }, [student?.parentUserId, firestore]); 
 
   const { data: credential, isLoading: credentialLoading } = useDoc<ParentCredential>(credentialRef);
-
-  // After loading, if there's no student document, then it's a 404.
-  // This check runs AFTER isLoading is false.
-  if (!student && !studentLoading && !studentError) {
-    notFound();
-  }
-
-  // A user can only view students in their own branch (unless super_admin)
-  const canViewStudent = user?.role === 'super_admin' || (student && user?.branchId === student.branchId);
 
   if (studentLoading) {
     return <DetailPageSkeleton />;
   }
 
-  if (!canViewStudent && student) {
+  // After loading, if there's no student document, then it's a 404.
+  if (!student && !studentLoading) {
+    if (studentError) {
+       return (
+        <Alert variant="destructive">
+            <AlertTitle>Error Loading Student</AlertTitle>
+            <AlertDescription>There was a problem loading student data. It could be a network or permission issue.</AlertDescription>
+        </Alert>
+       );
+    }
+    notFound();
+  }
+  
+  if (!student) {
+      return <DetailPageSkeleton />; // Still loading or preparing to show notFound
+  }
+
+  // A user can only view students in their own branch (unless super_admin)
+  const canViewStudent = user?.role === 'super_admin' || (student && user?.branchId === student.branchId);
+
+  if (!canViewStudent) {
     return (
         <Alert variant="destructive">
             <AlertTitle>Access Denied</AlertTitle>
             <AlertDescription>You do not have permission to view this student's details.</AlertDescription>
         </Alert>
     );
-  }
-  
-  if (!student) {
-      return <DetailPageSkeleton />;
   }
 
   const canViewCredentials = user?.role === 'super_admin' || user?.role === 'branch_admin' || user?.role === 'teacher';

@@ -7,12 +7,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { doc, setDoc, serverTimestamp, writeBatch, collection, Timestamp } from 'firebase/firestore';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { db, auth as mainAuth } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/components/auth-provider';
 import { useRouter } from 'next/navigation';
 import { IKContext, IKUpload } from 'imagekitio-react';
 import { generateUniqueQrCode } from '@/ai/flows/generate-unique-qr-code';
+import { useAuth as useFirebaseAuth, useFirestore } from '@/firebase';
+
 
 import {
   Card,
@@ -77,6 +78,8 @@ const generatePassword = () => {
 
 export default function AddStudentPage() {
   const { user } = useAuth();
+  const mainAuth = useFirebaseAuth();
+  const db = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -126,7 +129,7 @@ export default function AddStudentPage() {
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!user || !user.branchId) {
+    if (!user || !user.branchId || !db || !mainAuth) {
         toast({
             variant: 'destructive',
             title: 'Error',

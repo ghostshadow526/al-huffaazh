@@ -7,10 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import { useMemoFirebase } from '@/firebase/provider';
+import { useMemoFirebase, useAuth as useFirebaseAuth, useFirestore } from '@/firebase/provider';
 import { useAuth, User } from '@/components/auth-provider';
 import { useRouter } from 'next/navigation';
 
@@ -56,43 +55,46 @@ interface Branch {
 
 const BRANCH_NAMES = ["Ogbomosho", "Saminaka", "Keffi", "Jos"];
 
-async function seedBranchesIfNeeded() {
-  const branchesCollectionRef = collection(db, 'branches');
-  try {
-      const existingBranchesSnap = await getDocs(branchesCollectionRef);
-
-      if (existingBranchesSnap.empty) {
-        console.log("No branches found, seeding initial branches...");
-        const batch = writeBatch(db);
-        BRANCH_NAMES.forEach(name => {
-          const slug = name.toLowerCase().replace(/\s+/g, '-');
-          const branchRef = doc(branchesCollectionRef, slug);
-          batch.set(branchRef, { name, slug, address: name });
-        });
-        await batch.commit();
-        console.log("Initial branches have been seeded.");
-        return true;
-      }
-  } catch (error) {
-    console.error("Error seeding branches:", error);
-  }
-  return false;
-}
-
 export default function InviteUserPage() {
   const { user: currentUser } = useAuth();
+  const auth = useFirebaseAuth();
+  const db = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isSeeding, setIsSeeding] = useState(true);
   const [dataVersion, setDataVersion] = useState(0);
 
+  async function seedBranchesIfNeeded() {
+    if (!db) return false;
+    const branchesCollectionRef = collection(db, 'branches');
+    try {
+        const existingBranchesSnap = await getDocs(branchesCollectionRef);
+  
+        if (existingBranchesSnap.empty) {
+          console.log("No branches found, seeding initial branches...");
+          const batch = writeBatch(db);
+          BRANCH_NAMES.forEach(name => {
+            const slug = name.toLowerCase().replace(/\s+/g, '-');
+            const branchRef = doc(branchesCollectionRef, slug);
+            batch.set(branchRef, { name, slug, address: name });
+          });
+          await batch.commit();
+          console.log("Initial branches have been seeded.");
+          return true;
+        }
+    } catch (error) {
+      console.error("Error seeding branches:", error);
+    }
+    return false;
+  }
+
   const branchesQuery = useMemoFirebase(() => {
-    if (dataVersion >= 0) {
+    if (dataVersion >= 0 && db) {
       return collection(db, 'branches');
     }
     return null;
-  }, [dataVersion]);
+  }, [dataVersion, db]);
   
   const { data: branches, isLoading: branchesLoading } = useCollection<Branch>(branchesQuery);
 
@@ -108,7 +110,7 @@ export default function InviteUserPage() {
     } else {
         setIsSeeding(false);
     }
-  }, [currentUser]);
+  }, [currentUser, db]);
 
 
   const availableRoles = useMemo(() => {
@@ -143,6 +145,7 @@ export default function InviteUserPage() {
   }, [currentUser, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!auth || !db) return;
     setIsLoading(true);
     try {
       const currentAdminEmail = auth.currentUser?.email;
