@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import type { IDetectedBarcode } from '@yudiel/react-qr-scanner';
 import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,7 +13,8 @@ import { Loader2 } from 'lucide-react';
 import { collection, doc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import type { Student } from '../students/student-table';
-import { QrScanner } from '@yudiel/react-qr-scanner';
+import { Scanner } from '@yudiel/react-qr-scanner';
+
 
 export default function AttendancePage() {
   const { user } = useAuth();
@@ -23,25 +25,29 @@ export default function AttendancePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showScanner, setShowScanner] = useState(true);
 
-  const handleScan = async (result: string) => {
-    if (result && !isProcessing && !scannedStudentInfo) {
+  const handleScan = async (result: IDetectedBarcode[]) => {
+    const scannedValue = result[0]?.rawValue;
+    if (scannedValue && !isProcessing && !scannedStudentInfo) {
       setIsProcessing(true);
       setShowScanner(false); // Hide scanner after a successful scan
       
       let studentId = '';
       try {
         // Handle full URLs or just the ID
-        const url = new URL(result);
+        const url = new URL(scannedValue);
         const pathParts = url.pathname.split('/');
         studentId = pathParts[pathParts.length - 1];
       } catch (e) {
         // If it's not a valid URL, assume the result is the ID itself
-        studentId = result;
+        studentId = scannedValue;
       }
       
       if(studentId) {
         setScannedStudentId(studentId);
         try {
+            if (!firestore) {
+                throw new Error("Firestore is not initialized.");
+            }
             const studentDocRef = doc(firestore, 'students', studentId);
             const studentDocSnap = await getDoc(studentDocRef);
             if (studentDocSnap.exists()) {
@@ -168,8 +174,8 @@ export default function AttendancePage() {
                 <CardContent className="flex flex-col items-center gap-4">
                    <div className="w-full max-w-sm aspect-square bg-muted rounded-md overflow-hidden flex items-center justify-center relative">
                     {showScanner ? (
-                        <QrScanner
-                            onDecode={handleScan}
+                        <Scanner
+                            onResult={handleScan}
                             onError={handleError}
                             containerStyle={{ width: '100%', paddingTop: '100%' }}
                             videoStyle={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
