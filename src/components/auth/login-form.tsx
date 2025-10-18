@@ -29,6 +29,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email." }),
@@ -56,12 +58,13 @@ export function LoginForm({ role }: { role: Role }) {
     setIsLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
-      
+      const user = userCredential.user;
+
       if (role === 'admin') {
         const adminEmail = "alhuffazh@gmail.com";
         const adminToken = "4MPWGavMNqZLtdUGqtWvUYY0xDL2";
 
-        if (userCredential.user.email === adminEmail && userCredential.user.uid === adminToken) {
+        if (user.email === adminEmail && user.uid === adminToken) {
            toast({
             title: "Success",
             description: "Admin logged in successfully. Redirecting...",
@@ -75,12 +78,27 @@ export function LoginForm({ role }: { role: Role }) {
             description: "Not a valid admin account.",
           });
         }
-      } else {
-         toast({
+        return; // End execution for admin role
+      }
+
+      // For teacher and parent roles
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists() && userDoc.data().role === role) {
+        toast({
           title: "Success",
           description: "Logged in successfully. Redirecting to dashboard...",
         });
-        // The main layout will handle the redirect for non-admins.
+        // The main AppLayout will handle the redirect to /dashboard
+        router.push('/dashboard');
+      } else {
+        await auth.signOut();
+        toast({
+          variant: "destructive",
+          title: "Login Failed",
+          description: `You are not registered as a ${role}.`,
+        });
       }
 
     } catch (error: any) {
