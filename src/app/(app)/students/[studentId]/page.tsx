@@ -29,22 +29,25 @@ export default function StudentDetailPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [passwordVisible, setPasswordVisible] = useState(false);
+  const studentId = params.studentId;
 
   const studentRef = useMemoFirebase(() => {
-    if (!params.studentId) return null;
-    return doc(db, 'students', params.studentId);
-  }, [params.studentId]);
+    if (!studentId) return null;
+    return doc(db, 'students', studentId);
+  }, [studentId]);
 
   const { data: student, isLoading: studentLoading } = useDoc<Student>(studentRef);
 
+  const parentUserId = student?.parentUserId;
+
   const credentialRef = useMemoFirebase(() => {
-    if (!student?.parentUserId) return null;
-    return doc(db, 'parentCredentials', student.parentUserId);
-  }, [student]); // The dependency should be the student object itself.
+    if (!parentUserId) return null;
+    return doc(db, 'parentCredentials', parentUserId);
+  }, [parentUserId]); 
 
   const { data: credential, isLoading: credentialLoading } = useDoc<ParentCredential>(credentialRef);
 
-  const isLoading = studentLoading || (student && !credential && credentialLoading);
+  const isLoading = studentLoading || (student && student.parentUserId && credentialLoading);
 
   if (isLoading) {
     return <DetailPageSkeleton />;
