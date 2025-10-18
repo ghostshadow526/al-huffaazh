@@ -2,7 +2,7 @@
 "use client";
 import { useAuth, UserRole } from "@/components/auth-provider";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Users, CreditCard, UserPlus, ClipboardList, CalendarCheck, ResultIcon } from "lucide-react";
+import { Users, CreditCard, UserPlus, ClipboardList, CalendarCheck, GraduationCap } from "lucide-react";
 import { useMemoFirebase, useFirestore } from "@/firebase/provider";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { useCollection } from "@/firebase/firestore/use-collection";
@@ -14,7 +14,7 @@ const quickActions: { href: string; label: string; description: string; icon: Re
     { href: "/students/add", label: "Add a new student", description: "Enroll a new student and create their parent's account.", icon: UserPlus, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/manage-students", label: "Manage student records", description: "View, and see details of existing students.", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/attendance", label: "Take attendance", description: "Mark daily attendance by scanning student QR codes.", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
-    { href: "/results", label: "Enter student results", description: "Input term results and grades for your students.", icon: ResultIcon, roles: ['teacher', 'branch_admin', 'super_admin'] },
+    { href: "/results", label: "Enter student results", description: "Input term results and grades for your students.", icon: GraduationCap, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/payments", label: "Confirm payments", description: "Review and confirm submitted fee payments.", icon: CreditCard, roles: ['super_admin', 'branch_admin'] },
     { href: "/payments", label: "View payment history", description: "Check your payment status and upload receipts.", icon: CreditCard, roles: ['parent'] },
     { href: "/users/invite", label: "Create a new user", description: "Invite new teachers or administrators to the system.", icon: UserPlus, roles: ['super_admin', 'branch_admin'] },
