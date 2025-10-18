@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { useCollection } from '@/firebase/firestore/use-collection';
@@ -58,12 +58,45 @@ interface Branch {
   name: string;
 }
 
+const BRANCH_NAMES = ["Ogbomosho", "Saminaka", "Keffi", "Jos"];
+
+async function seedBranches() {
+  const branchesCollectionRef = collection(db, 'branches');
+  const existingBranchesSnap = await getDocs(branchesCollectionRef);
+
+  if (existingBranchesSnap.empty) {
+    console.log("No branches found, seeding initial branches...");
+    const batch = writeBatch(db);
+    BRANCH_NAMES.forEach(name => {
+      const slug = name.toLowerCase().replace(/\s+/g, '-');
+      const branchRef = doc(branchesCollectionRef, slug);
+      batch.set(branchRef, { name, slug, address: name }); // Using name as address placeholder
+    });
+    await batch.commit();
+    console.log("Initial branches have been seeded.");
+    return true; // Indicates seeding was attempted
+  }
+  return false; // Indicates no seeding was necessary
+}
+
 export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUserDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
   const branchesQuery = useMemoFirebase(() => collection(db, 'branches'), []);
-  const { data: branches, isLoading: branchesLoading } = useCollection<Branch>(branchesQuery);
+  const { data: branches, isLoading: branchesLoading, error } = useCollection<Branch>(branchesQuery);
+
+  const [isSeeding, setIsSeeding] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && !isSeeding && currentUser?.role === 'super_admin') {
+      setIsSeeding(true);
+      seedBranches().finally(() => {
+        setIsSeeding(false);
+      });
+    }
+  }, [isOpen, currentUser, isSeeding]);
+
 
   const availableRoles = useMemo(() => {
     if (currentUser?.role === 'super_admin') {
@@ -85,6 +118,17 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
       branchId: currentUser?.role === 'branch_admin' ? currentUser.branchId : '',
     },
   });
+  
+  // Reset form when dialog opens/closes or user changes
+  useEffect(() => {
+    form.reset({
+      fullName: '',
+      email: '',
+      password: '',
+      role: currentUser?.role === 'branch_admin' ? 'teacher' : 'branch_admin',
+      branchId: currentUser?.role === 'branch_admin' ? currentUser.branchId : '',
+    });
+  }, [isOpen, currentUser, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
@@ -113,7 +157,6 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
       });
       
       onOpenChange(false);
-      form.reset();
       
       // Force admin to re-login to restore their auth state
       setTimeout(() => {
@@ -221,7 +264,7 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
                   <Select 
                     onValueChange={field.onChange} 
                     defaultValue={field.value}
-                    disabled={currentUser?.role === 'branch_admin' || branchesLoading}
+                    disabled={currentUser?.role === 'branch_admin' || branchesLoading || isSeeding}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -229,7 +272,7 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {branchesLoading ? (
+                      {branchesLoading || isSeeding ? (
                         <SelectItem value="loading" disabled>Loading branches...</SelectItem>
                       ) : (
                         branches?.map(branch => (
