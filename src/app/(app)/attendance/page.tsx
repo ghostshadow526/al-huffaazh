@@ -25,8 +25,7 @@ export default function AttendancePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showScanner, setShowScanner] = useState(true);
 
-  const handleScan = async (result: IDetectedBarcode[]) => {
-    const scannedValue = result[0]?.rawValue;
+  const handleScan = async (scannedValue: string) => {
     if (scannedValue && !isProcessing && !scannedStudentInfo) {
       setIsProcessing(true);
       setShowScanner(false); // Hide scanner after a successful scan
@@ -175,7 +174,7 @@ export default function AttendancePage() {
                    <div className="w-full max-w-sm aspect-square bg-muted rounded-md overflow-hidden flex items-center justify-center relative">
                     {showScanner ? (
                         <Scanner
-                            onResult={handleScan}
+                            onResult={(result: string) => handleScan(result)}
                             onError={handleError}
                             containerStyle={{ width: '100%', paddingTop: '100%' }}
                             videoStyle={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
