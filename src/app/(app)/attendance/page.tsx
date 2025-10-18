@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,26 +25,34 @@ export default function AttendancePage() {
   const [scannedStudentId, setScannedStudentId] = useState<string | null>(null);
   const [scannedStudentInfo, setScannedStudentInfo] = useState<Student | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
 
   useEffect(() => {
     // Check for camera permission when component mounts
-    const checkCameraPermission = async () => {
+    const getCameraPermission = async () => {
       if (typeof navigator !== 'undefined' && navigator.mediaDevices) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          stream.getTracks().forEach(track => track.stop());
           setHasCameraPermission(true);
+           if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
         } catch (error) {
           console.error('Error accessing camera:', error);
           setHasCameraPermission(false);
+          toast({
+            variant: 'destructive',
+            title: 'Camera Access Denied',
+            description: 'Please enable camera permissions in your browser settings to use this app.',
+          });
         }
       } else {
         setHasCameraPermission(false);
       }
     };
-    checkCameraPermission();
-  }, []);
+    getCameraPermission();
+  }, [toast]);
 
   const handleScan = async (data: { text: string } | null) => {
     if (data && !isProcessing && !scannedStudentInfo) {
@@ -172,6 +180,19 @@ export default function AttendancePage() {
                       <span>Checking camera permissions...</span>
                     </div>
                   )}
+                   <div className="w-full max-w-sm aspect-square bg-muted rounded-md overflow-hidden flex items-center justify-center relative">
+                    <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                    {hasCameraPermission === true && !scannedStudentInfo && (
+                        <Suspense fallback={<Loader2 className="animate-spin"/>}>
+                            <QrScanner
+                                onScan={handleScan}
+                                onError={handleError}
+                                style={{ width: '100%', height: '100%' }}
+                                constraints={{ video: { facingMode: 'environment' } }}
+                            />
+                        </Suspense>
+                    )}
+                 </div>
                   {hasCameraPermission === false && (
                     <Alert variant="destructive">
                       <AlertTitle>Camera Access Denied</AlertTitle>
@@ -179,18 +200,6 @@ export default function AttendancePage() {
                         Please enable camera permissions in your browser settings to use the QR scanner.
                       </AlertDescription>
                     </Alert>
-                  )}
-                  {hasCameraPermission === true && !scannedStudentInfo && (
-                     <div className="w-full max-w-sm aspect-square bg-muted rounded-md overflow-hidden flex items-center justify-center">
-                        <Suspense fallback={<Loader2 className="animate-spin"/>}>
-                            <QrScanner
-                                onScan={handleScan}
-                                onError={handleError}
-                                style={{ width: '100%' }}
-                                constraints={{ video: { facingMode: 'environment' } }}
-                            />
-                        </Suspense>
-                     </div>
                   )}
                   {scannedStudentInfo && (
                     <div className="text-center space-y-4">
