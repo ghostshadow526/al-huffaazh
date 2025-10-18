@@ -32,6 +32,14 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+  } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Loader2, Copy } from 'lucide-react';
@@ -48,6 +56,8 @@ const formSchema = z.object({
   dob: z.date({
     required_error: 'Date of birth is required.',
   }),
+  gender: z.enum(['male', 'female'], { required_error: 'Gender is required.'}),
+  address: z.string().min(10, { message: 'A detailed address is required.' }),
   class: z.string().min(1, { message: 'Class is required.' }),
   admissionNo: z.string().min(1, { message: 'Admission number is required.' }),
   photoUrl: z.string().url({ message: 'A photo is required.' }),
@@ -83,6 +93,7 @@ export default function AddStudentPage() {
       admissionNo: '',
       photoUrl: '',
       parentEmail: '',
+      address: '',
     },
   });
 
@@ -341,6 +352,27 @@ export default function AddStudentPage() {
                             </FormItem>
                         )}
                         />
+                         <FormField
+                            control={form.control}
+                            name="gender"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Gender</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select gender" />
+                                    </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                    <SelectItem value="male">Male</SelectItem>
+                                    <SelectItem value="female">Female</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
                     <FormField
                     control={form.control}
                     name="class"
@@ -358,7 +390,7 @@ export default function AddStudentPage() {
                     control={form.control}
                     name="parentEmail"
                     render={({ field }) => (
-                        <FormItem className="md:col-span-2">
+                        <FormItem>
                         <FormLabel>Parent's Email</FormLabel>
                         <FormControl>
                             <Input type="email" placeholder="parent@example.com" {...field} />
@@ -368,6 +400,26 @@ export default function AddStudentPage() {
                         </FormItem>
                     )}
                     />
+                     <FormField
+                        control={form.control}
+                        name="address"
+                        render={({ field }) => (
+                            <FormItem className="md:col-span-2">
+                            <FormLabel>Address</FormLabel>
+                            <FormControl>
+                                <Textarea
+                                placeholder="123, Main Street, Your City..."
+                                className="resize-none"
+                                {...field}
+                                />
+                            </FormControl>
+                            <FormDescription>
+                                Enter the student's full residential address.
+                            </FormDescription>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
             </div>
           </CardContent>
           <CardFooter className="flex justify-end gap-2">

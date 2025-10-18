@@ -80,6 +80,15 @@
           "description": "Date of birth of the student.",
           "format": "date"
         },
+        "gender": {
+          "type": "string",
+          "description": "Gender of the student.",
+          "enum": ["male", "female"]
+        },
+        "address": {
+            "type": "string",
+            "description": "Home address of the student."
+        },
         "class": {
           "type": "string",
           "description": "Class of the student."
@@ -116,6 +125,8 @@
         "branchId",
         "fullName",
         "dob",
+        "gender",
+        "address",
         "class",
         "admissionNo",
         "photoUrl",
@@ -229,5 +240,3 @@
     ]
   }
 }
-
-    

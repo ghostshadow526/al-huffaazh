@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Image from 'next/image';
@@ -18,6 +18,8 @@ interface Student {
   admissionNo: string;
   photoUrl: string;
   dob: string;
+  address: string;
+  gender: string;
   qrImageUrl?: string;
 }
 
@@ -113,6 +115,8 @@ export default function StudentIdCardPage() {
           <div className="w-full text-left space-y-3 pt-4 border-t">
              <InfoRow label="Class" value={student.class} />
              <InfoRow label="Date of Birth" value={format(new Date(student.dob), 'MMMM d, yyyy')} />
+             <InfoRow label="Gender" value={student.gender} className="capitalize" />
+             <InfoRow label="Address" value={student.address} />
              <InfoRow label="Branch Address" value={branch?.address || 'N/A'} />
           </div>
 
@@ -123,11 +127,11 @@ export default function StudentIdCardPage() {
   );
 }
 
-function InfoRow({ label, value }: { label: string, value: string }) {
+function InfoRow({ label, value, className }: { label: string, value: string, className?: string }) {
     return (
-        <div className="flex justify-between items-center">
-            <span className="text-sm font-semibold text-muted-foreground">{label}:</span>
-            <span className="text-sm text-right font-medium text-foreground">{value}</span>
+        <div className="flex justify-between items-start gap-2">
+            <span className="text-sm font-semibold text-muted-foreground shrink-0">{label}:</span>
+            <span className={cn("text-sm text-right font-medium text-foreground", className)}>{value}</span>
         </div>
     )
 }
