@@ -54,20 +54,20 @@ interface Branch {
 }
 
 const BRANCH_NAMES = [
-    "JOS- dutse uku",
-    "naraguta",
-    "saminaka",
-    "lere",
-    "dokan lere",
-    "mariri",
-    "katchia",
-    "kayarda",
-    "Toro",
-    "marwa",
-    "nye kogi state",
-    "gambare ogbomosho",
-    "hamama ogbomosho",
-    "sakee"
+    "JOS- dutse uku branch",
+    "naraguta branch",
+    "saminaka branch",
+    "lere branch",
+    "dokan lere branch",
+    "mariri branch",
+    "katchia branch",
+    "kayarda branch",
+    "Toro branch",
+    "marwa branch",
+    "nye kogi state branch",
+    "gambare ogbomosho branch",
+    "hamama ogbomosho branch",
+    "sakee branch"
 ];
 
 export default function InviteUserPage() {
@@ -92,7 +92,7 @@ export default function InviteUserPage() {
           BRANCH_NAMES.forEach(name => {
             const slug = name.toLowerCase().replace(/\s+/g, '-');
             const branchRef = doc(branchesCollectionRef, slug);
-            batch.set(branchRef, { name: `${name} branch`, slug, address: name });
+            batch.set(branchRef, { name: name, slug, address: name.replace(' branch', '') });
           });
           await batch.commit();
           console.log("Initial branches have been seeded.");
@@ -329,5 +329,3 @@ export default function InviteUserPage() {
     </Card>
   );
 }
-
-    
