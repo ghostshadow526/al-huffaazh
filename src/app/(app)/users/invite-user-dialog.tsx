@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
-import { User, UserRole } from '@/components/auth-provider';
+import { User } from '@/components/auth-provider';
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name is required.' }),
@@ -83,11 +83,15 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
+  // Memoize the query to prevent re-renders
   const branchesQuery = useMemoFirebase(() => collection(db, 'branches'), []);
+  
+  // Use the useCollection hook to get live updates
   const { data: branches, isLoading: branchesLoading, error } = useCollection<Branch>(branchesQuery);
 
   const [isSeeding, setIsSeeding] = useState(false);
 
+  // Effect to seed branches if they don't exist
   useEffect(() => {
     if (isOpen && !isSeeding && currentUser?.role === 'super_admin') {
       setIsSeeding(true);
