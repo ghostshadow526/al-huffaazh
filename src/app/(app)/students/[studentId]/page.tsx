@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { useState } from 'react';
+import { doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { notFound, useParams } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
@@ -54,9 +54,20 @@ export default function StudentDetailPage() {
     return notFound();
   }
 
+  // A teacher can only view students in their own branch
+  if (user?.role === 'teacher' && user.branchId !== student.branchId) {
+    return (
+        <Alert variant="destructive">
+            <AlertTitle>Access Denied</AlertTitle>
+            <AlertDescription>You do not have permission to view this student's details.</AlertDescription>
+        </Alert>
+    );
+  }
+
   const canViewCredentials = user?.role === 'super_admin' || user?.role === 'branch_admin' || user?.role === 'teacher';
 
   const copyToClipboard = (text: string) => {
+    if (!text) return;
     navigator.clipboard.writeText(text);
     toast({ title: 'Copied!', description: 'Credentials copied to clipboard.' });
   };
@@ -82,11 +93,11 @@ export default function StudentDetailPage() {
             <CardHeader>
                 <CardTitle>Parent Login Credentials</CardTitle>
                 <CardDescription>
-                These are the temporary login details for the student's parent.
+                These are the temporary login details for the student's parent. They expire after 30 days.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                {credential ? (
+                {credential && credential.password ? (
                 <>
                  <div className="space-y-1">
                     <Label htmlFor="parent-email">Parent Email</Label>
