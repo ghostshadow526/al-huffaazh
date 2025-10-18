@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect } from 'react';
@@ -37,10 +38,10 @@ function getInitials(name?: string | null) {
 
 const navItems: { href: string; label: string; icon: LucideIcon; roles: UserRole[] }[] = [
     { href: "/dashboard", label: "Dashboard", icon: Home, roles: ['super_admin', 'branch_admin', 'teacher', 'parent'] },
-    { href: "/dashboard/students", label: "Students", icon: Users, roles: ['super_admin', 'branch_admin', 'teacher'] },
-    { href: "/dashboard/students/add", label: "Add Student", icon: UserPlus, roles: ['teacher'] },
-    { href: "/dashboard/payments", label: "Payments", icon: CreditCard, roles: ['super_admin', 'branch_admin', 'parent'] },
-    { href: "/dashboard/users", label: "Manage Users", icon: ShieldCheck, roles: ['super_admin', 'branch_admin'] },
+    { href: "/students", label: "Students", icon: Users, roles: ['super_admin', 'branch_admin', 'teacher'] },
+    { href: "/students/add", label: "Add Student", icon: UserPlus, roles: ['teacher'] },
+    { href: "/payments", label: "Payments", icon: CreditCard, roles: ['super_admin', 'branch_admin', 'parent'] },
+    { href: "/users", label: "Manage Users", icon: ShieldCheck, roles: ['super_admin', 'branch_admin'] },
 ];
 
 function DashboardSidebar({ user, children }: { user: User; children: React.ReactNode }) {
@@ -68,7 +69,7 @@ function DashboardSidebar({ user, children }: { user: User; children: React.Reac
             {accessibleNavItems.map((item) => (
               <SidebarMenuItem key={item.href}>
                 <Link href={item.href} passHref legacyBehavior>
-                  <SidebarMenuButton isActive={pathname.startsWith(item.href)} tooltip={{children: item.label}}>
+                  <SidebarMenuButton isActive={pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))} tooltip={{children: item.label}}>
                     <item.icon />
                     <span>{item.label}</span>
                   </SidebarMenuButton>
