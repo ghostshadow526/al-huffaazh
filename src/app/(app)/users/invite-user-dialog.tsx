@@ -62,40 +62,55 @@ const BRANCH_NAMES = ["Ogbomosho", "Saminaka", "Keffi", "Jos"];
 
 async function seedBranches() {
   const branchesCollectionRef = collection(db, 'branches');
-  const existingBranchesSnap = await getDocs(branchesCollectionRef);
+  try {
+      const existingBranchesSnap = await getDocs(branchesCollectionRef);
 
-  if (existingBranchesSnap.empty) {
-    console.log("No branches found, seeding initial branches...");
-    const batch = writeBatch(db);
-    BRANCH_NAMES.forEach(name => {
-      const slug = name.toLowerCase().replace(/\s+/g, '-');
-      const branchRef = doc(branchesCollectionRef, slug);
-      batch.set(branchRef, { name, slug, address: name }); // Using name as address placeholder
-    });
-    await batch.commit();
-    console.log("Initial branches have been seeded.");
-    return true; // Indicates seeding was attempted
+      if (existingBranchesSnap.empty) {
+        console.log("No branches found, seeding initial branches...");
+        const batch = writeBatch(db);
+        BRANCH_NAMES.forEach(name => {
+          const slug = name.toLowerCase().replace(/\s+/g, '-');
+          const branchRef = doc(branchesCollectionRef, slug);
+          batch.set(branchRef, { name, slug, address: name }); // Using name as address placeholder
+        });
+        await batch.commit();
+        console.log("Initial branches have been seeded.");
+        return true;
+      }
+  } catch (error) {
+    console.error("Error seeding branches:", error);
   }
-  return false; // Indicates no seeding was necessary
+  return false;
 }
 
 export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUserDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
-  // Memoize the query to prevent re-renders
-  const branchesQuery = useMemoFirebase(() => collection(db, 'branches'), []);
+  // Use a state to trigger re-fetch for useCollection
+  const [branchSeedTrigger, setBranchSeedTrigger] = useState(0);
+
+  const branchesQuery = useMemoFirebase(() => {
+    // This dependency on branchSeedTrigger will cause useCollection to refetch
+    if (branchSeedTrigger >= 0) {
+      return collection(db, 'branches');
+    }
+    return null;
+  }, [branchSeedTrigger]);
   
-  // Use the useCollection hook to get live updates
-  const { data: branches, isLoading: branchesLoading, error } = useCollection<Branch>(branchesQuery);
+  const { data: branches, isLoading: branchesLoading } = useCollection<Branch>(branchesQuery);
 
   const [isSeeding, setIsSeeding] = useState(false);
 
-  // Effect to seed branches if they don't exist
   useEffect(() => {
     if (isOpen && !isSeeding && currentUser?.role === 'super_admin') {
       setIsSeeding(true);
-      seedBranches().finally(() => {
+      seedBranches().then((wasSeeded) => {
+        if (wasSeeded) {
+          // If seeding happened, trigger a refetch by updating the state
+          setBranchSeedTrigger(c => c + 1);
+        }
+      }).finally(() => {
         setIsSeeding(false);
       });
     }
@@ -123,7 +138,6 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
     },
   });
   
-  // Reset form when dialog opens/closes or user changes
   useEffect(() => {
     form.reset({
       fullName: '',
@@ -137,11 +151,9 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      // We create a temporary user in auth to get a UID
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // Then we store the user's data, including their role and branch, in Firestore
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         fullName: values.fullName,
@@ -150,11 +162,8 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
         branchId: values.branchId,
       });
 
-      // Sign out the newly created user so the admin remains logged in
       await auth.signOut();
       
-      // Need to re-authenticate the admin user.
-      // This is a simplified approach. A more robust solution might use a server-side admin SDK.
       toast({
         title: 'User Invited Successfully',
         description: `${values.fullName} has been added. You will be logged out to complete the process. Please log back in.`,
@@ -162,7 +171,6 @@ export function InviteUserDialog({ isOpen, onOpenChange, currentUser }: InviteUs
       
       onOpenChange(false);
       
-      // Force admin to re-login to restore their auth state
       setTimeout(() => {
         window.location.href = '/login';
       }, 3000)
