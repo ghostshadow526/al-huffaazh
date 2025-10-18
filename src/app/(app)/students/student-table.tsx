@@ -28,6 +28,7 @@ export interface Student {
   photoUrl: string;
   qrImageUrl?: string;
   parentUserId?: string;
+  parentEmail?: string;
 }
 
 interface StudentTableProps {
@@ -41,6 +42,7 @@ const columnHeaders: Record<string, string> = {
   fullName: 'Full Name',
   class: 'Class',
   admissionNo: 'Admission No.',
+  parentEmail: "Parent's Email",
   branchId: 'Branch ID',
   actions: 'Actions',
 };

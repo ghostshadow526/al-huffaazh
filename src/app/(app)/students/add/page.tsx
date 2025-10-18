@@ -190,6 +190,7 @@ export default function AddStudentPage() {
             createdByUserId: user.uid,
             createdAt: serverTimestamp(),
             parentUserId: parentUser.uid, // Link student to parent
+            parentEmail: values.parentEmail, // Denormalize parent email
         });
 
         // 6. Commit all batched writes
@@ -469,3 +470,5 @@ export default function AddStudentPage() {
       </>
   );
 }
+
+    
