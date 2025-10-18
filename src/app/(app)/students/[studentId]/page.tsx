@@ -40,11 +40,11 @@ export default function StudentDetailPage() {
   const credentialRef = useMemoFirebase(() => {
     if (!student?.parentUserId) return null;
     return doc(db, 'parentCredentials', student.parentUserId);
-  }, [student]);
+  }, [student]); // The dependency should be the student object itself.
 
   const { data: credential, isLoading: credentialLoading } = useDoc<ParentCredential>(credentialRef);
 
-  const isLoading = studentLoading || credentialLoading;
+  const isLoading = studentLoading || (student && !credential && credentialLoading);
 
   if (isLoading) {
     return <DetailPageSkeleton />;
@@ -66,7 +66,7 @@ export default function StudentDetailPage() {
 
   const canViewCredentials = user?.role === 'super_admin' || user?.role === 'branch_admin' || user?.role === 'teacher';
 
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = (text: string | undefined) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
     toast({ title: 'Copied!', description: 'Credentials copied to clipboard.' });
