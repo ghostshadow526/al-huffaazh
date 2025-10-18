@@ -41,12 +41,14 @@ export default function StudentDetailPage() {
   const parentUserId = student?.parentUserId;
 
   const credentialRef = useMemoFirebase(() => {
+    // This hook will now correctly re-run when `parentUserId` is available.
     if (!parentUserId) return null;
     return doc(db, 'parentCredentials', parentUserId);
   }, [parentUserId]); 
 
   const { data: credential, isLoading: credentialLoading } = useDoc<ParentCredential>(credentialRef);
 
+  // The loading state should depend on whether we are expecting to load credentials.
   const isLoading = studentLoading || (student && student.parentUserId && credentialLoading);
 
   if (isLoading) {
@@ -54,6 +56,7 @@ export default function StudentDetailPage() {
   }
 
   if (!student) {
+    // This handles the case where studentLoading is false but student is null (e.g., not found)
     return notFound();
   }
 
@@ -125,10 +128,13 @@ export default function StudentDetailPage() {
                 </div>
                 </>
                 ) : (
-                    <Alert variant="destructive">
-                        <AlertTitle>Credentials Expired or Not Found</AlertTitle>
+                    <Alert>
+                        <AlertTitle>Credentials Status</AlertTitle>
                         <AlertDescription>
-                            The temporary credentials for this parent are no longer available. If the parent cannot log in, their password may need to be reset.
+                            { student.parentUserId ? 
+                            'The temporary credentials for this parent have expired or are no longer available. If the parent cannot log in, their password may need to be reset.' : 
+                            'No parent account is linked to this student.'
+                            }
                         </AlertDescription>
                     </Alert>
                 )}
