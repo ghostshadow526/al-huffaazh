@@ -1,0 +1,39 @@
+diff --git a/node_modules/react-qr-scanner/dist/esm/index.js b/node_modules/react-qr-scanner/dist/esm/index.js
+index 923a1a4..f7926e8 100644
+--- a/node_modules/react-qr-scanner/dist/esm/index.js
++++ b/node_modules/react-qr-scanner/dist/esm/index.js
+@@ -1,13 +1,13 @@
+ import { jsx as _jsx } from "react/jsx-runtime";
+ import { useCallback, useEffect, useRef, useState } from "react";
+-import { BrowserMultiFormatReader } from "@zxing/library";
++import { a as BrowserMultiFormatReader } from "./BrowserMultiFormatReader-B5A12a-d.js";
+ const lastUsedDevice = "faceing-camera-last-used-device";
+ const QrScanner = (props) => {
+     const { onScan, onError, constraints, onMediaStream, onResult, facingMode, scanDelay, mirror, video, className, style, showViewFinder, viewFinder, } = props;
+     const videoEl = useRef(null);
+     const [error, setError] = useState("");
+     const onNewScanResult = (result) => {
+-        if (onResult) {
++        if (onResult && result) {
+             onResult(result);
+             return;
+         }
+@@ -16,7 +16,7 @@
+         return;
+     };
+     const onNewMediaStream = (stream) => {
+-        if (onMediaStream) {
++        if (onMediaStream && stream) {
+             onMediaStream(stream);
+             return;
+         }
+@@ -49,7 +49,7 @@ const QrScanner = (props) => {
+         const codeReader = new BrowserMultiFormatReader(undefined, {
+             delayBetweenScanAttempts: scanDelay,
+         });
+-        const selectedDeviceId = JSON.parse(localStorage.getItem(lastUsedDevice));
++        const selectedDeviceId = localStorage.getItem(lastUsedDevice);
+         const newConstraints = {
+             ...constraints,
+             video: {
+

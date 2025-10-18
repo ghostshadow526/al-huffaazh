@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useRef } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,9 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
-import { collection, query, where, getDocs, writeBatch, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, getDoc, setDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
-import { Student } from '../students/student-table';
+import type { Student } from '../students/student-table';
 
 // Dynamically import the QR scanner only on the client side
 import dynamic from 'next/dynamic';
@@ -25,6 +25,8 @@ export default function AttendancePage() {
   const [scannedStudentId, setScannedStudentId] = useState<string | null>(null);
   const [scannedStudentInfo, setScannedStudentInfo] = useState<Student | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
 
   useEffect(() => {
     // Check for camera permission when component mounts
@@ -33,8 +35,9 @@ export default function AttendancePage() {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ video: true });
           setHasCameraPermission(true);
-          // Stop the stream immediately, we only needed to check permission
-          stream.getTracks().forEach(track => track.stop());
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
         } catch (error) {
           console.error('Error accessing camera:', error);
           setHasCameraPermission(false);
@@ -44,6 +47,14 @@ export default function AttendancePage() {
       }
     };
     getCameraPermission();
+    
+    // Clean up the stream when component unmounts
+    return () => {
+        if (videoRef.current && videoRef.current.srcObject) {
+            const stream = videoRef.current.srcObject as MediaStream;
+            stream.getTracks().forEach(track => track.stop());
+        }
+    }
   }, []);
 
   const handleScan = async (data: { text: string } | null) => {
@@ -67,6 +78,7 @@ export default function AttendancePage() {
                     description: `No student found with ID: ${studentId}`,
                 });
                 setScannedStudentInfo(null);
+                setIsProcessing(false);
             }
         } catch (error: any) {
             toast({
@@ -74,6 +86,7 @@ export default function AttendancePage() {
                 title: 'Error Fetching Student',
                 description: error.message,
             });
+            setIsProcessing(false);
         }
       } else {
          toast({
@@ -81,6 +94,7 @@ export default function AttendancePage() {
             title: 'Invalid QR Code',
             description: 'The scanned QR code does not contain a valid student URL.',
         });
+        setIsProcessing(false);
       }
     }
   };
@@ -90,7 +104,7 @@ export default function AttendancePage() {
     toast({
       variant: 'destructive',
       title: 'QR Scan Error',
-      description: 'There was an error with the camera or QR scanner.',
+      description: 'There was an error with the camera or QR scanner. Please ensure permissions are enabled.',
     });
   };
 
