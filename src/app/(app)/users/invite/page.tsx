@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -12,6 +11,8 @@ import { useCollection } from '@/firebase/firestore/use-collection';
 import { useMemoFirebase, useAuth as useFirebaseAuth, useFirestore } from '@/firebase/provider';
 import { useAuth } from '@/components/auth-provider';
 import { useRouter } from 'next/navigation';
+import { seedBranchesIfNeeded } from "@/lib/seedBranches";
+
 
 import {
   Card,
@@ -47,13 +48,12 @@ const formSchema = z.object({
   role: z.enum(['branch_admin', 'teacher', 'parent']),
   branchId: z.string().optional(),
 }).refine((data) => {
-    // branchId is required if role is not super_admin
-    return data.role === 'super_admin' || (typeof data.branchId === 'string' && data.branchId.length > 0);
+  // branchId is required if role is not super_admin
+  return data.role === 'super_admin' || (typeof data.branchId === 'string' && data.branchId.length > 0);
 }, {
-    message: 'Branch is required for this role.',
-    path: ['branchId'],
+  message: 'Branch is required for this role.',
+  path: ['branchId'],
 });
-
 
 interface Branch {
   id: string;
@@ -61,22 +61,21 @@ interface Branch {
 }
 
 const BRANCH_NAMES = [
-    "JOS – Dutse Uku Branch",
-    "Naraguta Branch",
-    "Saminaka Branch",
-    "Lere Branch",
-    "Dokan Lere Branch",
-    "Mariri Branch",
-    "Katchia Branch",
-    "Kayarda Branch",
-    "Toro Branch",
-    "Marwa Branch",
-    "Nye Kogi State Branch",
-    "Gambare Ogbomosho Branch",
-    "Hamama Ogbomosho Branch",
-    "Sakee Branch"
+  "JOS – Dutse Uku Branch",
+  "Naraguta Branch",
+  "Saminaka Branch",
+  "Lere Branch",
+  "Dokan Lere Branch",
+  "Mariri Branch",
+  "Katchia Branch",
+  "Kayarda Branch",
+  "Toro Branch",
+  "Marwa Branch",
+  "Nye Kogi State Branch",
+  "Gambare Ogbomosho Branch",
+  "Hamama Ogbomosho Branch",
+  "Sakee Branch"
 ];
-
 
 export default function InviteUserPage() {
   const { user: currentUser } = useAuth();
@@ -84,33 +83,48 @@ export default function InviteUserPage() {
   const db = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
+
   const [isLoading, setIsLoading] = useState(false);
   const [isSeeding, setIsSeeding] = useState(true);
   const [dataVersion, setDataVersion] = useState(0);
 
-  async function seedBranchesIfNeeded() {
-    if (!db) return false;
-    const branchesCollectionRef = collection(db, 'branches');
-    try {
-        const existingBranchesSnap = await getDocs(branchesCollectionRef);
-  
-        if (existingBranchesSnap.empty) {
-          console.log("No branches found, seeding initial branches...");
+  // 🔥 Automatically seed branches if missing
+  useEffect(() => {
+    if (!db || !currentUser) return;
+
+    async function runSeed() {
+      if (currentUser.role === 'super_admin') {
+        setIsSeeding(true);
+        const branchesCollectionRef = collection(db, 'branches');
+        const existingSnap = await getDocs(branchesCollectionRef);
+
+        if (existingSnap.empty) {
+          console.log("No branches found — seeding...");
           const batch = writeBatch(db);
+
           BRANCH_NAMES.forEach(name => {
             const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-            const branchRef = doc(branchesCollectionRef, slug);
-            batch.set(branchRef, { name: name, slug, address: name.replace(' Branch', '') });
+            batch.set(doc(branchesCollectionRef, slug), {
+              name,
+              slug,
+              address: name.replace(' Branch', ''),
+            });
           });
+
           await batch.commit();
-          console.log("Initial branches have been seeded.");
-          return true;
+          console.log("✅ Branches seeded!");
         }
-    } catch (error) {
-      console.error("Error seeding branches:", error);
+
+        // Force UI refresh after seeding
+        setTimeout(() => setDataVersion(v => v + 1), 700);
+        setIsSeeding(false);
+      } else {
+        setIsSeeding(false);
+      }
     }
-    return false;
-  }
+
+    runSeed();
+  }, [db, currentUser]);
 
   const branchesQuery = useMemoFirebase(() => {
     if (dataVersion >= 0 && db) {
@@ -118,23 +132,30 @@ export default function InviteUserPage() {
     }
     return null;
   }, [dataVersion, db]);
-  
-  const { data: branches, isLoading: branchesLoading } = useCollection<Branch>(branchesQuery);
+
+  const { data: branchesRaw, isLoading: branchesLoading } = useCollection(branchesQuery);
+
+  const branches: Branch[] = useMemo(() => {
+    const firestoreBranches = branchesRaw?.map((doc: any) => ({
+      id: doc.id,
+      name: doc.name,
+    })) ?? [];
+
+    // Fallback: if Firestore is empty, use static list
+    if (firestoreBranches.length === 0) {
+      return BRANCH_NAMES.map(name => ({
+        id: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        name,
+      }));
+    }
+
+    return firestoreBranches;
+  }, [branchesRaw]);
 
   useEffect(() => {
-    if (currentUser?.role === 'super_admin') {
-      setIsSeeding(true);
-      seedBranchesIfNeeded().then((seeded) => {
-        if (seeded) {
-          setDataVersion(v => v + 1);
-        }
-        setIsSeeding(false);
-      });
-    } else {
-        setIsSeeding(false);
-    }
-  }, [currentUser, db]);
-
+    seedBranchesIfNeeded();
+  }, []);
+  
 
   const availableRoles = useMemo(() => {
     if (currentUser?.role === 'super_admin') {
@@ -156,31 +177,26 @@ export default function InviteUserPage() {
       branchId: '',
     },
   });
-  
+
   const selectedRole = useWatch({
     control: form.control,
     name: 'role'
   });
 
   useEffect(() => {
-      form.reset({
-        fullName: '',
-        email: '',
-        password: '',
-        role: currentUser?.role === 'branch_admin' ? 'teacher' : 'branch_admin',
-        branchId: currentUser?.role === 'branch_admin' ? currentUser.branchId : '',
-      });
+    form.reset({
+      fullName: '',
+      email: '',
+      password: '',
+      role: currentUser?.role === 'branch_admin' ? 'teacher' : 'branch_admin',
+      branchId: currentUser?.role === 'branch_admin' ? currentUser.branchId : '',
+    });
   }, [currentUser, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!auth || !db) return;
     setIsLoading(true);
     try {
-      const currentAdminEmail = auth.currentUser?.email;
-      if (currentAdminEmail) {
-         await auth.signOut();
-      }
-
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
@@ -192,32 +208,18 @@ export default function InviteUserPage() {
         branchId: values.branchId,
       });
 
-      await auth.signOut();
-      
       toast({
         title: 'User Created Successfully',
-        description: `${values.fullName} has been added. You will be logged out to complete the process. Please log back in.`,
+        description: `${values.fullName} has been added.`,
       });
-      
-      setTimeout(() => {
-        router.push('/login');
-      }, 3000);
 
+      router.push('/dashboard');
     } catch (error: any) {
-      let errorMessage = "An unknown error occurred.";
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'This email address is already in use.';
-      } else {
-        errorMessage = error.message;
-      }
       toast({
         variant: 'destructive',
         title: 'Failed to Create User',
-        description: errorMessage,
+        description: error.message,
       });
-      if (auth.currentUser === null) {
-          console.warn("User creation failed. Please log in again.");
-      }
     } finally {
       setIsLoading(false);
     }
@@ -279,12 +281,7 @@ export default function InviteUserPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Role</FormLabel>
-                   <Select onValueChange={(value) => {
-                       field.onChange(value);
-                        if (currentUser?.role === 'branch_admin') {
-                           form.setValue('branchId', currentUser.branchId);
-                       }
-                   }} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a role" />
@@ -308,8 +305,8 @@ export default function InviteUserPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Branch</FormLabel>
-                  <Select 
-                    onValueChange={field.onChange} 
+                  <Select
+                    onValueChange={field.onChange}
                     value={field.value}
                     disabled={currentUser?.role === 'branch_admin' || branchesLoading || isSeeding}
                     required={selectedRole !== 'super_admin'}
@@ -320,15 +317,11 @@ export default function InviteUserPage() {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {branchesLoading || isSeeding ? (
-                        <SelectItem value="loading" disabled>Loading branches...</SelectItem>
-                      ) : (
-                        branches?.map(branch => (
-                          <SelectItem key={branch.id} value={branch.id} className="capitalize">
-                            {branch.name}
-                          </SelectItem>
-                        ))
-                      )}
+                      {branches.map(branch => (
+                        <SelectItem key={branch.id} value={branch.id} className="capitalize">
+                          {branch.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -337,16 +330,14 @@ export default function InviteUserPage() {
             />
           </CardContent>
           <CardFooter className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={() => router.back()}>Cancel</Button>
-              <Button type="submit" disabled={isLoading || isSeeding}>
-                {(isLoading || isSeeding) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Invite User
-              </Button>
+            <Button type="button" variant="ghost" onClick={() => router.back()}>Cancel</Button>
+            <Button type="submit" disabled={isLoading || isSeeding}>
+              {(isLoading || isSeeding) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Invite User
+            </Button>
           </CardFooter>
         </form>
       </Form>
     </Card>
   );
 }
-
-    
