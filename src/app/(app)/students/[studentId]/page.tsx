@@ -46,14 +46,20 @@ export default function StudentDetailPage() {
 
   const { data: credential, isLoading: credentialLoading } = useDoc<ParentCredential>(credentialRef);
 
+
   if (studentLoading) {
     return <DetailPageSkeleton />;
   }
 
   // After loading, if there's no student, then it's a 404.
-  if (!student) {
+  if (!student && !studentLoading) {
     return notFound();
   }
+  
+  if (!student) {
+      return <DetailPageSkeleton />;
+  }
+
 
   // A teacher can only view students in their own branch
   if (user?.role === 'teacher' && user.branchId !== student.branchId) {

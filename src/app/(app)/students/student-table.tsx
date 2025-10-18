@@ -72,18 +72,20 @@ export function StudentTable({ data, columns, isLoading }: StudentTableProps) {
                 <p>View Student Info</p>
               </TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" asChild>
-                  <a href={item.qrImageUrl} target="_blank" rel="noopener noreferrer" download={`${item.admissionNo}-qrcode.png`}>
-                    <QrCode className="h-4 w-4" />
-                  </a>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>View & Download QR Code</p>
-              </TooltipContent>
-            </Tooltip>
+            {item.qrImageUrl && (
+                <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" asChild>
+                    <a href={item.qrImageUrl} target="_blank" rel="noopener noreferrer" download={`${item.admissionNo}-qrcode.png`}>
+                        <QrCode className="h-4 w-4" />
+                    </a>
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>View & Download QR Code</p>
+                </TooltipContent>
+                </Tooltip>
+            )}
           </div>
         </TooltipProvider>
       );
