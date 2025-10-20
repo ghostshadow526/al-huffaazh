@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, writeBatch, updateDoc } from 'firebase/firestore';
+import { collection, query, where, doc, writeBatch } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -47,7 +47,8 @@ export default function AdminTransactionsPage() {
   const receiptsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     
-    // This is the critical guard: only create a query if the user is an admin.
+    // Only admins can query for receipts.
+    // Super admins see all, branch admins see their branch's receipts.
     if (user.role === 'super_admin') {
       return collection(firestore, 'receipts');
     }
@@ -55,7 +56,7 @@ export default function AdminTransactionsPage() {
       return query(collection(firestore, 'receipts'), where('branchId', '==', user.branchId));
     }
     
-    // For any other role (like 'parent' or 'teacher'), return null to prevent the query.
+    // For any other role, return null to prevent the query and avoid permission errors.
     return null;
   }, [user, firestore]);
   
@@ -110,6 +111,7 @@ export default function AdminTransactionsPage() {
         toast({ variant: 'destructive', title: 'Error', description: 'Please provide a reason for rejection.' });
         return;
     };
+    if (!user) return;
     setIsProcessing(true);
 
     const receiptDocRef = doc(firestore, 'receipts', selectedReceipt.id);
@@ -120,7 +122,7 @@ export default function AdminTransactionsPage() {
     batch.update(receiptDocRef, {
         status: 'rejected',
         rejectionReason: rejectionReason,
-        verifiedBy: user?.uid,
+        verifiedBy: user.uid,
     });
     
     batch.set(notificationDocRef, {
@@ -220,12 +222,14 @@ export default function AdminTransactionsPage() {
                             <Button asChild variant="outline" size="sm">
                                 <a href={t.fileUrl} target="_blank" rel="noopener noreferrer">View Receipt</a>
                             </Button>
-                            {t.status === 'pending' && user?.role === 'super_admin' && (
+                            {t.status === 'pending' && (
                                 <>
-                                  <Button size="sm" onClick={() => handleApprove(t)} className="bg-green-600 hover:bg-green-700" disabled={isProcessing}>
-                                      {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                      Approve
-                                  </Button>
+                                  {user?.role === 'super_admin' && (
+                                     <Button size="sm" onClick={() => handleApprove(t)} className="bg-green-600 hover:bg-green-700" disabled={isProcessing}>
+                                        {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Approve
+                                    </Button>
+                                  )}
                                   <Button size="sm" variant="destructive" onClick={() => openRejectDialog(t)} disabled={isProcessing}>Reject</Button>
                                 </>
                             )}

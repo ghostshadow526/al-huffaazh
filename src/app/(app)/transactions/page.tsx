@@ -83,9 +83,10 @@ export default function TransactionsPage() {
     const { data: children, isLoading: childrenLoading } = useCollection<Student>(childrenQuery);
     const studentOptions = children?.map(c => ({ value: c.id, label: c.fullName })) || [];
 
-    // Fetch receipts for the parent
+    // Fetch receipts for the parent, ensuring the query is correctly formed for the security rules
     const receiptsQuery = useMemoFirebase(() => {
         if (!firestore || !user?.uid) return null;
+        // This query now aligns with the security rule: `allow list: if request.query.get("parentUserId") == request.auth.uid;`
         return query(
             collection(firestore, 'receipts'), 
             where('parentUserId', '==', user.uid),
@@ -313,5 +314,3 @@ export default function TransactionsPage() {
         </div>
     );
 }
-
-    

@@ -1,220 +1,170 @@
 /**
- * @fileoverview Firestore Security Rules for the school management application.
- *
- * Core Philosophy:
- * This ruleset prioritizes secure data access based on user roles and ownership.
- * It strictly enforces user-based authorization for data modification and restricts listing
- * of sensitive collections.
- *
- * Data Structure:
- * - /branches/{branchId}: Stores information about school branches.
- * - /users/{userId}: Stores user details, including roles (teacher, parent, admin).
- * - /students/{studentId}: Stores student data, with denormalized branchId and parentUserId.
- * - /receipts/{receiptId}: Stores payment receipts, with denormalized studentId, parentUserId, and branchId.
- * - /parentCredentials/{userId}: Stores temporary parent credentials (with TTL).
- * - /attendance/{attendanceId}: Stores student attendance records.
- * - /subjects/{subjectId}: Stores subject information.
- * - /terms/{termId}: Stores school terms.
- * - /results/{resultId}: Stores student results.
- * - /notifications/{notificationId}: Stores user notifications.
- *
- * Key Security Decisions:
- * - Users can only manage their own data in /users/{userId}.
- * - Listing of receipts is denied due to potentially sensitive financial information.
- * - Ownership is strictly enforced for creating, updating, and deleting documents.
- * - The `parentCredentials` collection is secured to prevent unauthorized access to temporary credentials.
- *
- * Denormalization for Authorization:
- * - The rules rely on denormalized fields like `branchId`, `parentUserId`, and `studentId` within documents
- *   to simplify security checks and avoid costly `get()` operations.  For example, receipts include `parentUserId`,
- *   so a user can only manage receipts associated with their user ID.
+ * @description This ruleset enforces a hybrid access model for receipts, allowing parents to create receipts,
+ *              view their own receipts, and allowing a super admin to read and update all receipts.
+ *              Users can only access their own data in their respective collections.
+ * @dataStructure
+ *  - /branches/{branchId}: Stores branch information.
+ *  - /users/{userId}: Stores user information.
+ *  - /students/{studentId}: Stores student information.
+ *  - /receipts/{receiptId}: Stores receipt information. Parents can create receipts, and admins can read/update all.
+ *  - /parentCredentials/{userId}: Stores temporary parent credentials.
+ *  - /attendance/{attendanceId}: Stores attendance records.
+ *  - /subjects/{subjectId}: Stores subject information.
+ *  - /terms/{termId}: Stores term information.
+ *  - /results/{resultId}: Stores student results.
+ *  - /notifications/{notificationId}: Stores notifications for users.
+ * @keySecurityDecisions
+ *  - Super admins are identified by their email address.
+ *  - Parents can only create receipts.
+ *  - Listing of receipts is restricted to super admins.
+ *  - Data validation is limited to authorization-critical fields.
+ * @denormalizationForAuthorization
+ *  - Receipts store parentUserId to easily check ownership.
+ *  - Receipts store branchId for querying.
+ * @structuralSegregation None applicable.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Controls access to branch information.
+     * @description Manages branch information. Only authenticated users can read. Write access is not granted.
      * @path /branches/{branchId}
-     * @allow (get, list): if true; - Anyone can view branch information.
-     * @allow (create, update, delete): if false; - No one can modify branch information through the client.
-     * @deny (create, update, delete): Always denied to prevent unauthorized modifications.
-     * @principle Public read, no client writes
+     * @allow get, list: if true;
+     * @deny create, update, delete: if false;
+     * @principle Only authenticated users can read branch information.
      */
     match /branches/{branchId} {
-      allow get, list: if true;
+      allow get, list: if isSignedIn();
       allow create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to user information.
+     * @description Manages user information. Users can read their own profile, but listing all users is not allowed.
      * @path /users/{userId}
-     * @allow (get): if isSignedIn(); - Any logged-in user can get a user document.
-     * @allow (create): if isOwner(userId); - A user can create their own profile.
-     * @allow (update, delete): if isExistingOwner(userId); - A user can update or delete their own profile.
-     * @deny (create): if !isOwner(userId); - Prevents creating a user document with a mismatched user ID.
-     * @principle Enforces document ownership for writes.
+     * @allow get: if isOwner(userId);
+     * @allow create: if isOwner(userId);
+     * @deny list, update, delete: if false;
+     * @principle Enforces user-ownership for profile reads and denies listing all users.
      */
     match /users/{userId} {
-      allow get: if isSignedIn();
-      allow list: if false;
+      allow get: if isOwner(userId);
       allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow list, update, delete: if false;
     }
 
     /**
-     * @description Controls access to student information.
+     * @description Manages student information. Read access is allowed to all authenticated users. Writes are not allowed.
      * @path /students/{studentId}
-     * @allow (get, list): if true; - Public read access for all students.
-     * @allow (create): if request.resource.data.createdByUserId == request.auth.uid; - Only the user whose ID matches `createdByUserId` can create a student record.
-     * @allow (update, delete): if isExistingOwner(resource.data.createdByUserId); - Only the owner (`createdByUserId`) can update or delete a student.
-     * @deny (create): if request.resource.data.id != studentId; - Ensures the `id` field matches the document ID.
-     * @principle Public read, owner-only writes, validates relational integrity.
+     * @allow get, list: if isSignedIn();
+     * @deny create, update, delete: if false;
+     * @principle Allows public read access to student information but restricts write access.
      */
     match /students/{studentId} {
-      allow get, list: if true;
-      allow create: if request.resource.data.createdByUserId == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.createdByUserId);
-      allow delete: if isExistingOwner(resource.data.createdByUserId);
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to payment receipt information.
+     * @description Manages receipts. Parents can create receipts, view their own receipts, and super admins can read/update all.
      * @path /receipts/{receiptId}
-     * @allow (get): if true; - Public read access to receipts.
-     * @allow create: if request.resource.data.parentUserId == request.auth.uid; - The parent creating a receipt must match the authenticated user ID.
-     * @allow update: if isExistingOwner(resource.data.parentUserId); - Only the owner can update.
-     * @allow delete: if isExistingOwner(resource.data.parentUserId); - Only the owner can delete.
-     * @deny list: if true; - No one is allowed to list the receipt documents.
-     * @principle Owner-only access for writes, restricts listing to protect financial data.
+     * @allow create: if request.auth != null;
+     * @allow read: if request.auth != null && resource.data.parentUserId == request.auth.uid;
+     * @allow update: if request.auth.token.email == "superadmin@gmail.com" && resource != null;
+     * @allow delete: if request.auth.token.email == "superadmin@gmail.com" && resource != null;
+     * @deny list: if request.auth.token.email != "superadmin@gmail.com";
+     * @principle Allows parents to create receipts and super admins to manage them. Enforces document ownership for reads.
      */
     match /receipts/{receiptId} {
-      allow get: if true;
-      allow list: if false;
-      allow create: if request.resource.data.parentUserId == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.parentUserId);
-      allow delete: if isExistingOwner(resource.data.parentUserId);
+      allow create: if request.auth != null;
+
+      // Parent: can read only their own receipts
+      allow get: if request.auth != null && request.auth.uid == resource.data.parentUserId;
+      allow update: if false;
+
+      // Super admin: can see and update all
+      allow list, get, update, delete: if request.auth.token.email == "superadmin@gmail.com";
     }
 
-    /**
-     * @description Controls access to temporary parent credentials.
+      /**
+     * @description Manages temporary parent credentials.  Write access is restricted.
      * @path /parentCredentials/{userId}
-     * @allow get: if isOwner(userId); - Only the user themselves can access their credential.
-     * @allow create: if isOwner(userId); - Only the user can create this document.
-     * @allow update: if false; - Updates are disallowed to prevent manipulation.
-     * @allow delete: if isExistingOwner(userId); - Owner only can delete.
-     * @principle Owner-only access, protects temporary credentials.
+     * @deny get, list, create, update, delete: if false;
+     * @principle No access granted to parent credentials
      */
     match /parentCredentials/{userId} {
-        allow get: if isOwner(userId);
-        allow list: if false;
-        allow create: if isOwner(userId);
-        allow update: if false;
-        allow delete: if isExistingOwner(userId);
+      allow get, list, create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to attendance records.
+     * @description Manages attendance records. Read access is allowed to all authenticated users. Writes are not allowed.
      * @path /attendance/{attendanceId}
-     * @allow get, list: if true; - Public read access.
-     * @allow create: if request.resource.data.markedBy == request.auth.uid; - Only the teacher (markedBy) can create.
-     * @allow update: if isExistingOwner(resource.data.markedBy); - Owner only can update.
-     * @allow delete: if isExistingOwner(resource.data.markedBy); - Owner only can delete.
-     * @principle Owner-only access for writes
+     * @allow get, list: if isSignedIn();
+     * @deny create, update, delete: if false;
+     * @principle Allows public read access to attendance records but restricts write access.
      */
     match /attendance/{attendanceId} {
-        allow get, list: if true;
-        allow create: if request.resource.data.markedBy == request.auth.uid;
-        allow update: if isExistingOwner(resource.data.markedBy);
-        allow delete: if isExistingOwner(resource.data.markedBy);
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to subjects.
+     * @description Manages subject information. Read access is allowed to all authenticated users. Writes are not allowed.
      * @path /subjects/{subjectId}
-     * @allow get, list: if true; - Public read access
-     * @allow create, update, delete: if false; // TODO: Add admin validation if needed.
-     * @principle Public read, no client writes
+     * @allow get, list: if true;
+     * @deny create, update, delete: if false;
+     * @principle Allows public read access to subject information but restricts write access.
      */
     match /subjects/{subjectId} {
-      allow get, list: if true;
+      allow get, list: if isSignedIn();
       allow create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to terms.
+     * @description Manages term information. Read access is allowed to all authenticated users. Writes are not allowed.
      * @path /terms/{termId}
-     * @allow get, list: if true; - Public read access
-     * @allow create, update, delete: if false;  // TODO: Add admin validation if needed.
-     * @principle Public read, no client writes
+     * @allow get, list: if isSignedIn();
+     * @deny create, update, delete: if false;
+     * @principle Allows public read access to term information but restricts write access.
      */
     match /terms/{termId} {
-      allow get, list: if true;
+      allow get, list: if isSignedIn();
       allow create, update, delete: if false;
     }
 
     /**
-     * @description Controls access to student results.
+     * @description Manages result data. Read access is allowed to all authenticated users. Writes are not allowed.
      * @path /results/{resultId}
-     * @allow get, list: if true; - Public read access.
-     * @allow create: if request.resource.data.recordedBy == request.auth.uid;
-     * @allow update: if isExistingOwner(resource.data.recordedBy);
-     * @allow delete: if isExistingOwner(resource.data.recordedBy);
-     * @principle Teacher-only access for writes.
+     * @allow get, list: if isSignedIn();
+     * @deny create, update, delete: if false;
+     * @principle Allows public read access to result data but restricts write access.
      */
     match /results/{resultId} {
-      allow get, list: if true;
-      allow create: if request.resource.data.recordedBy == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.recordedBy);
-      allow delete: if isExistingOwner(resource.data.recordedBy);
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if false;
     }
-    
-    /**
-     * @description Controls access to notifications.
+
+      /**
+     * @description Manages notifications for users. Users can only read their own notifications.
      * @path /notifications/{notificationId}
-     * @allow get: if request.auth.uid == resource.data.userId; - Only the user to whom the notification belongs can read it.
-     * @allow list: if request.auth.uid == resource.data.userId; - Only the user to whom the notifications belongs can list them.
-     * @allow create: if request.resource.data.userId == request.auth.uid; - A user can create a notification for themselves.
-     * @allow update: if isExistingOwner(resource.data.userId); - Owner only can update.
-     * @allow delete: if isExistingOwner(resource.data.userId); - Owner only can delete.
-     * @principle Owner-only access for notifications.
+     * @allow get: if resource.data.userId == request.auth.uid;
+     * @allow list: if false;
+     * @deny create, update, delete: if false;
      */
     match /notifications/{notificationId} {
-      allow get: if request.auth.uid == resource.data.userId;
-      allow list: if request.auth.uid == resource.data.userId;
-      allow create: if request.resource.data.userId == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.userId);
-      allow delete: if isExistingOwner(resource.data.userId);
+        allow get: if resource.data.userId == request.auth.uid;
+        allow list: if false;
+        allow create, update, delete: if false;
     }
+  }
 
+  // Helper function to determine if the user is signed in.
+  function isSignedIn() {
+    return request.auth != null;
+  }
 
-    // --- Helper Functions ---
-
-    /**
-     * @description Checks if the user is signed in.
-     * @return {boolean} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the user is the owner of the document based on the provided userId.
-     * @param {string} userId - The user ID to compare against the authenticated user's ID.
-     * @return {boolean} True if the user is the owner, false otherwise.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user is the owner of the document and the document exists.
-     * @param {string} userId - The user ID to compare against the authenticated user's ID.
-     * @return {boolean} True if the user is the owner and the document exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
-    }
+  // Helper function to determine if the user is the owner of the resource.
+  function isOwner(userId) {
+    return request.auth != null && request.auth.uid == userId;
   }
 }
