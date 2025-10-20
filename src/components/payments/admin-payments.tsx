@@ -1,223 +1,150 @@
+"use client";
 
-'use client';
+import React, { useEffect } from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth, User, UserRole } from '@/components/auth-provider';
+import {
+  SidebarProvider,
+  Sidebar,
+  SidebarHeader,
+  SidebarContent,
+  SidebarFooter,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarInset,
+  SidebarTrigger,
+  SidebarSeparator,
+} from "@/components/ui/sidebar";
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Logo } from '@/components/logo';
+import {
+  Home,
+  Users,
+  CreditCard,
+  UserPlus,
+  LogOut,
+  ShieldCheck,
+  LucideIcon,
+  ClipboardList,
+  CalendarCheck,
+  User as UserProfileIcon,
+  GraduationCap,
+  Bell,
+  ArrowLeftRight,
+} from 'lucide-react';
+import { useAuth as useFirebaseAuth } from '@/firebase';
 
-import React, { useState, useMemo } from 'react';
-import { useAuth } from '@/components/auth-provider';
-import { useFirestore, useMemoFirebase, useCollection } from '@/firebase';
-import { collection, query, where, doc, writeBatch, serverTimestamp, orderBy } from 'firebase/firestore';
-import { useToast } from '@/hooks/use-toast';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { Loader2, CheckCircle, XCircle } from 'lucide-react';
-import { format } from 'date-fns';
-import { Skeleton } from '../ui/skeleton';
-
-interface PaymentRecord {
-    id: string;
-    studentName: string;
-    amount: number;
-    paymentReason: string;
-    otherReason?: string;
-    status: 'pending' | 'confirmed' | 'rejected';
-    createdAt: any;
-    receiptUrl: string;
-    parentUserId: string;
-    branchId: string;
+function getInitials(name?: string | null) {
+  if (!name) return "U";
+  return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 }
 
-export default function AdminPayments() {
-    const { user } = useAuth();
-    const firestore = useFirestore();
-    const { toast } = useToast();
+const navItems: { href: string; label: string; icon: LucideIcon; roles: UserRole[] }[] = [
+    { href: "/dashboard", label: "Dashboard", icon: Home, roles: ['super_admin', 'branch_admin', 'teacher', 'parent'] },
+    { href: "/profile", label: "My Profile", icon: UserProfileIcon, roles: ['super_admin', 'branch_admin', 'teacher', 'parent'] },
+    { href: "/notifications", label: "Notifications", icon: Bell, roles: ['super_admin', 'branch_admin', 'teacher', 'parent'] },
+    { href: "/manage-students", label: "Manage Students", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
+    { href: "/attendance", label: "Attendance", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
+    { href: "/results", label: "Results", icon: GraduationCap, roles: ['teacher', 'branch_admin', 'super_admin'] },
+    { href: "/transactions", label: "Transactions", icon: ArrowLeftRight, roles: ['parent', 'super_admin', 'branch_admin'] },
+    { href: "/users", label: "Manage Users", icon: Users, roles: ['super_admin', 'branch_admin'] },
+];
 
-    const [processingId, setProcessingId] = useState<string | null>(null);
-    const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
-    const [selectedPayment, setSelectedPayment] = useState<PaymentRecord | null>(null);
-    const [rejectionReason, setRejectionReason] = useState('');
+function DashboardSidebar({ user, children }: { user: User; children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const auth = useFirebaseAuth();
 
-    const paymentsQuery = useMemoFirebase(() => {
-        if (!user || !user.uid) return null;
-        let q = query(collection(firestore, 'payments'), orderBy('createdAt', 'desc'));
-        if (user.role === 'branch_admin' && user.branchId) {
-            q = query(q, where('branchId', '==', user.branchId));
-        }
-        return q;
-    }, [firestore, user?.uid, user?.role, user?.branchId]);
+  const handleLogout = async () => {
+    if (auth) {
+      await auth.signOut();
+    }
+    router.push('/');
+  };
+  
+  const accessibleNavItems = navItems.filter(item => user.role && item.roles.includes(user.role));
 
-    const { data: payments, isLoading } = useCollection<PaymentRecord>(paymentsQuery);
-
-    const handleConfirm = async (payment: PaymentRecord) => {
-        if (!firestore || !user) return;
-        setProcessingId(payment.id);
-        try {
-            const batch = writeBatch(firestore);
-            const paymentRef = doc(firestore, 'payments', payment.id);
-            batch.update(paymentRef, {
-                status: 'confirmed',
-                confirmedBy: user.uid,
-                confirmedAt: serverTimestamp(),
-            });
-
-            const notificationRef = doc(collection(firestore, 'notifications'));
-            batch.set(notificationRef, {
-                userId: payment.parentUserId,
-                message: `Your payment of ₦${payment.amount.toLocaleString()} for ${payment.studentName} has been confirmed.`,
-                link: '/payments',
-                read: false,
-                createdAt: serverTimestamp(),
-            });
-
-            await batch.commit();
-            toast({ title: 'Payment Confirmed', description: 'The payment has been marked as paid.' });
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: error.message });
-        } finally {
-            setProcessingId(null);
-        }
-    };
-
-    const openRejectionDialog = (payment: PaymentRecord) => {
-        setSelectedPayment(payment);
-        setRejectionModalOpen(true);
-    };
-
-    const handleReject = async () => {
-        if (!firestore || !user || !selectedPayment || !rejectionReason) return;
-        setProcessingId(selectedPayment.id);
-        setRejectionModalOpen(false);
-
-        try {
-            const batch = writeBatch(firestore);
-            const paymentRef = doc(firestore, 'payments', selectedPayment.id);
-            batch.update(paymentRef, {
-                status: 'rejected',
-                rejectionReason: rejectionReason,
-            });
-
-            const notificationRef = doc(collection(firestore, 'notifications'));
-            batch.set(notificationRef, {
-                userId: selectedPayment.parentUserId,
-                message: `Your payment of ₦${selectedPayment.amount.toLocaleString()} was rejected. Reason: ${rejectionReason}`,
-                link: '/payments',
-                read: false,
-                createdAt: serverTimestamp(),
-            });
-
-            await batch.commit();
-            toast({ title: 'Payment Rejected', description: 'The parent has been notified.' });
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: error.message });
-        } finally {
-            setProcessingId(null);
-            setRejectionReason('');
-            setSelectedPayment(null);
-        }
-    };
-
-    const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
-      switch (status) {
-        case 'confirmed': return 'default';
-        case 'pending': return 'secondary';
-        case 'rejected': return 'destructive';
-        default: return 'outline';
-      }
-    };
-
-    return (
-        <>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Manage Payments</CardTitle>
-                    <CardDescription>Review, confirm, or reject fee payments submitted by parents.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Student Name</TableHead>
-                                <TableHead>Amount</TableHead>
-                                <TableHead>Reason</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Receipt</TableHead>
-                                <TableHead>Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                                [...Array(5)].map((_, i) => (
-                                    <TableRow key={i}>
-                                        <TableCell colSpan={7}><Skeleton className="h-10 w-full" /></TableCell>
-                                    </TableRow>
-                                ))
-                            ) : payments && payments.length > 0 ? (
-                                payments.map(p => (
-                                    <TableRow key={p.id}>
-                                        <TableCell className="font-medium">{p.studentName}</TableCell>
-                                        <TableCell>₦{p.amount.toLocaleString()}</TableCell>
-                                        <TableCell className="capitalize">{p.paymentReason.replace('_', ' ')}</TableCell>
-                                        <TableCell>{format(p.createdAt.toDate(), 'MMM d, yyyy')}</TableCell>
-                                        <TableCell>
-                                            <Badge variant={getStatusVariant(p.status)} className="capitalize">{p.status}</Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <a href={p.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-accent underline">View</a>
-                                        </TableCell>
-                                        <TableCell>
-                                            {p.status === 'pending' ? (
-                                                <div className="flex gap-2">
-                                                    <Button size="sm" onClick={() => handleConfirm(p)} disabled={processingId === p.id} className="bg-green-500 hover:bg-green-600">
-                                                        {processingId === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4"/>}
-                                                        <span className='ml-2 hidden sm:inline'>Confirm</span>
-                                                    </Button>
-                                                    <Button size="sm" variant="destructive" onClick={() => openRejectionDialog(p)} disabled={processingId === p.id}>
-                                                         {processingId === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4"/>}
-                                                        <span className='ml-2 hidden sm:inline'>Reject</span>
-                                                    </Button>
-                                                </div>
-                                            ) : (
-                                                <span className="text-xs text-muted-foreground">Processed</span>
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={7} className="h-24 text-center">No payment submissions found.</TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-
-            <Dialog open={rejectionModalOpen} onOpenChange={setRejectionModalOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Reject Payment?</DialogTitle>
-                        <DialogDescription>
-                            Please provide a reason for rejecting this payment. The parent will be notified.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <Textarea
-                            placeholder="e.g., Receipt is unclear, amount does not match..."
-                            value={rejectionReason}
-                            onChange={(e) => setRejectionReason(e.target.value)}
-                        />
+  return (
+    <SidebarProvider>
+      <Sidebar collapsible="icon" className="border-sidebar-border">
+        <SidebarHeader>
+          <div className="flex items-center gap-2" data-testid="sidebar-header">
+             <Logo className="w-8 h-8 text-sidebar-primary group-data-[state=collapsed]:w-10 group-data-[state=collapsed]:h-10 transition-all" />
+            <span className="text-lg font-semibold text-sidebar-foreground group-data-[state=collapsed]:hidden">Al-Huffaazh</span>
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarMenu>
+            {accessibleNavItems.map((item) => (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton asChild isActive={pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))} tooltip={{children: item.label}}>
+                  <Link href={item.href}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarContent>
+        <SidebarFooter>
+          <SidebarSeparator />
+          <SidebarMenu>
+            <SidebarMenuItem>
+                <div className="flex items-center gap-3 p-2 group-data-[state=collapsed]:p-0 group-data-[state=collapsed]:justify-center">
+                    <Avatar className="group-data-[state=collapsed]:w-8 group-data-[state=collapsed]:h-8">
+                        <AvatarImage src={user.photoURL || ''} alt={user.fullName || 'User'}/>
+                        <AvatarFallback>{getInitials(user.fullName || user.email)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col text-sm group-data-[state=collapsed]:hidden">
+                        <span className="font-semibold text-sidebar-foreground">{user.fullName || user.email}</span>
+                        <span className="text-sidebar-foreground/70 capitalize">{user.role?.replace('_', ' ')}</span>
                     </div>
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setRejectionModalOpen(false)}>Cancel</Button>
-                        <Button variant="destructive" onClick={handleReject} disabled={!rejectionReason || !!processingId}>
-                            {processingId ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm Rejection'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </>
+                </div>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={handleLogout} tooltip={{children: "Logout"}}>
+                <LogOut />
+                <span className="group-data-[state=collapsed]:hidden">Logout</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset>
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:px-6">
+          <SidebarTrigger className="md:hidden"/>
+          <div className="w-full flex-1">
+             <h1 className="text-xl font-semibold capitalize">{pathname.split('/').pop()?.replace('-', ' ')}</h1>
+          </div>
+        </header>
+        <main className="flex-1 p-4 md:p-6">
+          {children}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/login');
+    }
+  }, [user, loading, router]);
+
+  if (loading || !user) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <Logo className="h-16 w-16 animate-pulse text-accent" />
+      </div>
     );
+  }
+
+  return <DashboardSidebar user={user}>{children}</DashboardSidebar>;
 }
