@@ -42,16 +42,23 @@ export default function AdminPayments() {
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    
-    let q = query(collection(firestore, 'payments'), orderBy('createdAt', 'desc'));
 
-    if (user.role === 'branch_admin' && user.branchId) {
-      q = query(q, where('branchId', '==', user.branchId));
-    } else if (user.role !== 'super_admin') {
-      return null; // Should not happen based on page logic, but for safety
+    if (user.role === 'super_admin') {
+      // Super admin can see all payments, ordered by creation date
+      return query(collection(firestore, 'payments'), orderBy('createdAt', 'desc'));
     }
     
-    return q;
+    if (user.role === 'branch_admin' && user.branchId) {
+      // Branch admin can only see payments for their branch
+      return query(
+        collection(firestore, 'payments'),
+        where('branchId', '==', user.branchId),
+        orderBy('createdAt', 'desc')
+      );
+    }
+    
+    // For any other role, return null to prevent unauthorized queries
+    return null;
   }, [firestore, user]);
 
   const { data: payments, isLoading: paymentsLoading } = useCollection<PaymentRecord>(paymentsQuery);
@@ -155,7 +162,7 @@ export default function AdminPayments() {
                     <AlertDialog>
                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0" disabled={user.role !== 'super_admin'}>
+                              <Button variant="ghost" className="h-8 w-8 p-0" disabled={payment.status !== 'pending' || (user?.role !== 'super_admin' && user?.role !== 'branch_admin')}>
                                   <span className="sr-only">Open menu</span>
                                   <MoreHorizontal className="h-4 w-4" />
                               </Button>
@@ -165,23 +172,27 @@ export default function AdminPayments() {
                               <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                                 <a href={payment.receiptUrl} target="_blank" rel="noopener noreferrer" className="w-full">View Receipt</a>
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handlePaymentStatusChange(payment, 'confirmed')}
-                                disabled={payment.status !== 'pending'}
-                              >
-                                  <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
-                                  Confirm
-                              </DropdownMenuItem>
-                              <AlertDialogTrigger asChild>
+                              {(user?.role === 'super_admin' || user?.role === 'branch_admin') && (
+                                <>
                                   <DropdownMenuItem
-                                    onSelect={(e) => e.preventDefault()}
+                                    onClick={() => handlePaymentStatusChange(payment, 'confirmed')}
                                     disabled={payment.status !== 'pending'}
-                                    className="text-red-600 focus:bg-red-50 focus:text-red-700"
-                                >
-                                      <XCircle className="mr-2 h-4 w-4" />
-                                      Reject
-                                </DropdownMenuItem>
-                               </AlertDialogTrigger>
+                                  >
+                                      <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
+                                      Confirm
+                                  </DropdownMenuItem>
+                                  <AlertDialogTrigger asChild>
+                                      <DropdownMenuItem
+                                        onSelect={(e) => e.preventDefault()}
+                                        disabled={payment.status !== 'pending'}
+                                        className="text-red-600 focus:bg-red-50 focus:text-red-700"
+                                    >
+                                          <XCircle className="mr-2 h-4 w-4" />
+                                          Reject
+                                    </DropdownMenuItem>
+                                  </AlertDialogTrigger>
+                                </>
+                              )}
                           </DropdownMenuContent>
                       </DropdownMenu>
                        <AlertDialogContent>
@@ -230,5 +241,3 @@ export default function AdminPayments() {
     </Card>
   );
 }
-
-    
