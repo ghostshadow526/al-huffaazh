@@ -294,8 +294,12 @@ export default function TransactionsPage() {
                                         </div>
                                          {transaction.rejectionReason && <p className="text-xs text-destructive mt-1">Reason: {transaction.rejectionReason}</p>}
                                         <div className="text-xs text-muted-foreground mt-2">
-                                            <span>Submitted {formatDistanceToNow(new Date(transaction.createdAt.seconds * 1000), { addSuffix: true })}</span>
-                                            <a href={transaction.receiptUrl} target="_blank" rel="noopener noreferrer" className="ml-2 text-accent underline">View Receipt</a>
+                                            {transaction.createdAt ? (
+                                            <>
+                                                <span>Submitted {formatDistanceToNow(new Date(transaction.createdAt.seconds * 1000), { addSuffix: true })}</span>
+                                                <a href={transaction.receiptUrl} target="_blank" rel="noopener noreferrer" className="ml-2 text-accent underline">View Receipt</a>
+                                            </>
+                                            ) : <span>Processing...</span>}
                                         </div>
                                     </div>
                                 ))}
@@ -310,5 +314,3 @@ export default function TransactionsPage() {
         </div>
     );
 }
-
-    

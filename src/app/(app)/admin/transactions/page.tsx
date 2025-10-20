@@ -47,10 +47,11 @@ export default function AdminTransactionsPage() {
   
   const transactionsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
+    
     if (user.role === 'super_admin') {
       return collection(firestore, 'transactions');
     }
-    if (user.role === 'branch_admin') {
+    if (user.role === 'branch_admin' && user.branchId) {
       return query(collection(firestore, 'transactions'), where('branchId', '==', user.branchId));
     }
     return null;
@@ -195,7 +196,7 @@ export default function AdminTransactionsPage() {
                     </TableCell>
                     <TableCell>{t.amount.toLocaleString()}</TableCell>
                     <TableCell>{t.reason}</TableCell>
-                    <TableCell>{formatDistanceToNow(new Date(t.createdAt.seconds * 1000), { addSuffix: true })}</TableCell>
+                    <TableCell>{t.createdAt ? formatDistanceToNow(new Date(t.createdAt.seconds * 1000), { addSuffix: true }) : 'N/A'}</TableCell>
                     <TableCell>{getStatusBadge(t.status)}</TableCell>
                     <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">

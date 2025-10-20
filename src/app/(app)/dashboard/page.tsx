@@ -17,17 +17,17 @@ const quickActions: { href: string; label: string; description: string; icon: Re
     { href: "/manage-students", label: "Manage student records", description: "View, and see details of existing students.", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/attendance", label: "Take attendance", description: "Mark daily attendance by scanning student QR codes.", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/results", label: "Enter student results", description: "Input term results and grades for your students.", icon: GraduationCap, roles: ['teacher', 'branch_admin', 'super_admin'] },
-    { href: "/payments", label: "Confirm payments", description: "Review and confirm submitted fee payments.", icon: CreditCard, roles: ['super_admin', 'branch_admin'] },
-    { href: "/payments", label: "View payment history", description: "Check your payment status and upload receipts.", icon: CreditCard, roles: ['parent'] },
+    { href: "/admin/transactions", label: "Confirm payments", description: "Review and confirm submitted fee payments.", icon: CreditCard, roles: ['super_admin', 'branch_admin'] },
+    { href: "/transactions", label: "View payment history", description: "Check your payment status and upload receipts.", icon: CreditCard, roles: ['parent'] },
     { href: "/users/invite", label: "Create a new user", description: "Invite new teachers or administrators to the system.", icon: UserPlus, roles: ['super_admin', 'branch_admin'] },
 ];
 
 function ParentDashboard({ user }: { user: NonNullable<ReturnType<typeof useAuth>['user']> }) {
     const firestore = useFirestore();
     const childrenQuery = useMemoFirebase(() => {
-        if (!firestore || !user.uid) return null;
+        if (!firestore || !user?.uid) return null;
         return query(collection(firestore, 'students'), where('parentUserId', '==', user.uid));
-    }, [firestore, user.uid]);
+    }, [firestore, user?.uid]);
 
     const { data: children, isLoading } = useCollection<Student>(childrenQuery);
 
@@ -94,7 +94,7 @@ export default function DashboardPage() {
       return query(collection(firestore, 'students'), where('branchId', '==', user.branchId));
     }
     return null;
-  }, [user?.uid, user?.role, user?.branchId, firestore]);
+  }, [user, firestore]);
 
 
   const { data: students, isLoading: studentsLoading } = useCollection(studentsQuery);
@@ -172,5 +172,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
