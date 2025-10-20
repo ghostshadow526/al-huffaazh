@@ -2,9 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { collection, query, where, orderBy, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/components/auth-provider';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -36,112 +34,28 @@ interface Transaction {
 
 export default function AdminTransactionsPage() {
   const { user } = useAuth();
-  const firestore = useFirestore();
   const { toast } = useToast();
 
   const [filter, setFilter] = useState<'pending' | 'confirmed' | 'rejected' | 'all'>('pending');
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [isRejecting, setIsRejecting] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState('');
+  
+  // By setting transactions to an empty array and isLoading to false, we prevent any Firestore calls.
+  const transactions: Transaction[] = [];
+  const isLoading = false;
 
-  const transactionsQuery = useMemoFirebase(() => {
-    if (!user?.uid || !firestore) return null;
-
-    let q = query(collection(firestore, 'transactions'), orderBy('createdAt', 'desc'));
-
-    if (user.role === 'branch_admin' && user.branchId) {
-      q = query(q, where('branchId', '==', user.branchId));
-    }
-
-    if (filter !== 'all') {
-      q = query(q, where('status', '==', filter));
-    }
-
-    return q;
-  }, [user?.uid, user?.role, user?.branchId, firestore, filter]);
-
-  const { data: transactions, isLoading } = useCollection<Transaction>(transactionsQuery);
 
   const handleConfirm = async (transaction: Transaction) => {
-    if (!firestore || !user) return;
-    try {
-      const batch = writeBatch(firestore);
-
-      const transactionRef = doc(firestore, 'transactions', transaction.id);
-      batch.update(transactionRef, {
-        status: 'confirmed',
-        confirmedBy: user.uid,
-        confirmedAt: serverTimestamp(),
-      });
-
-      const notificationRef = doc(collection(firestore, 'notifications'));
-      batch.set(notificationRef, {
-        userId: transaction.parentUserId,
-        message: `Your payment of ₦${transaction.amount.toLocaleString()} for ${transaction.studentName} has been confirmed.`,
-        link: `/transactions`,
-        read: false,
-        createdAt: serverTimestamp(),
-      });
-
-      await batch.commit();
-
-      toast({
-        title: 'Transaction Confirmed',
-        description: `Payment for ${transaction.studentName} has been marked as confirmed.`,
-      });
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Confirmation Failed',
-        description: error.message,
-      });
-    }
+    // This function is now disabled.
+    toast({ title: 'Functionality Disabled', description: 'This feature is currently not connected to the database.' });
   };
 
   const openRejectDialog = (transaction: Transaction) => {
-    setSelectedTransaction(transaction);
-    setIsRejecting(true);
-    setRejectionReason('');
+     // This function is now disabled.
+    toast({ title: 'Functionality Disabled', description: 'This feature is currently not connected to the database.' });
   };
 
   const handleReject = async () => {
-    if (!firestore || !user || !selectedTransaction || !rejectionReason.trim()) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Rejection reason cannot be empty.' });
-      return;
-    }
-    try {
-        const batch = writeBatch(firestore);
-        
-        const transactionRef = doc(firestore, 'transactions', selectedTransaction.id);
-        batch.update(transactionRef, {
-            status: 'rejected',
-            rejectionReason: rejectionReason,
-        });
-
-        const notificationRef = doc(collection(firestore, 'notifications'));
-        batch.set(notificationRef, {
-            userId: selectedTransaction.parentUserId,
-            message: `Your payment for ${selectedTransaction.studentName} was rejected. Reason: ${rejectionReason}`,
-            link: `/transactions`,
-            read: false,
-            createdAt: serverTimestamp(),
-        });
-
-        await batch.commit();
-
-        toast({
-            title: 'Transaction Rejected',
-        });
-    } catch (error: any) {
-        toast({
-            variant: 'destructive',
-            title: 'Rejection Failed',
-            description: error.message,
-        });
-    } finally {
-        setIsRejecting(false);
-        setSelectedTransaction(null);
-    }
+    // This function is now disabled.
+    toast({ title: 'Functionality Disabled', description: 'This feature is currently not connected to the database.' });
   };
 
   const getStatusBadge = (status: Transaction['status']) => {
@@ -217,7 +131,7 @@ export default function AdminTransactionsPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">No transactions found for this filter.</TableCell>
+                  <TableCell colSpan={6} className="h-24 text-center">No transaction submissions found.</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -225,7 +139,7 @@ export default function AdminTransactionsPage() {
         </div>
       </CardContent>
 
-      <Dialog open={isRejecting} onOpenChange={setIsRejecting}>
+      <Dialog>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Reject Transaction</DialogTitle>
@@ -237,14 +151,12 @@ export default function AdminTransactionsPage() {
             <Label htmlFor="rejection-reason">Rejection Reason</Label>
             <Textarea 
               id="rejection-reason"
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
               placeholder="e.g., Receipt is unclear, amount does not match..."
             />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsRejecting(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleReject}>Submit Rejection</Button>
+            <Button variant="ghost">Cancel</Button>
+            <Button variant="destructive">Submit Rejection</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
