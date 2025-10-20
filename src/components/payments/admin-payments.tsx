@@ -1,9 +1,10 @@
+
 'use client';
 
 import React, { useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, query, where, orderBy, doc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, doc, updateDoc, writeBatch, serverTimestamp, limit } from 'firebase/firestore';
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -43,11 +44,11 @@ export default function AdminPayments() {
     if (!firestore || !user) return null;
 
     if (user.role === 'super_admin') {
-      // Super admin can see all pending payments across all branches
+      // Super admin can see all payments across all branches, limited to 50 most recent to be safe.
       return query(
         collection(firestore, 'payments'),
-        where('status', '==', 'pending'),
-        orderBy('createdAt', 'desc')
+        orderBy('createdAt', 'desc'),
+        limit(50)
       );
     }
     
@@ -246,3 +247,5 @@ export default function AdminPayments() {
     </Card>
   );
 }
+
+    
