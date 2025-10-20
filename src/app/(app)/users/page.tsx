@@ -17,7 +17,7 @@ export default function UsersPage() {
   const firestore = useFirestore();
 
   const usersQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
+    if (!user || !firestore || !user.uid) return null;
     if (user.role === 'super_admin') {
       return collection(firestore, 'users');
     }
@@ -25,7 +25,7 @@ export default function UsersPage() {
       return query(collection(firestore, 'users'), where('branchId', '==', user.branchId));
     }
     return null;
-  }, [user, firestore]);
+  }, [user?.uid, user?.role, user?.branchId, firestore]);
 
   const { data: users, isLoading } = useCollection<User>(usersQuery);
 
@@ -58,5 +58,3 @@ export default function UsersPage() {
     </div>
   );
 }
-
-    

@@ -25,7 +25,7 @@ const quickActions: { href: string; label: string; description: string; icon: Re
 function ParentDashboard({ user }: { user: NonNullable<ReturnType<typeof useAuth>['user']> }) {
     const firestore = useFirestore();
     const childrenQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
+        if (!firestore || !user.uid) return null;
         return query(collection(firestore, 'students'), where('parentUserId', '==', user.uid));
     }, [firestore, user.uid]);
 
@@ -87,7 +87,7 @@ export default function DashboardPage() {
   const [loadingStats, setLoadingStats] = useState(true);
 
   const studentsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
+    if (!user || !firestore || !user.uid) return null;
     if (user.role === 'super_admin') {
       return collection(firestore, 'students');
     }
@@ -95,18 +95,18 @@ export default function DashboardPage() {
       return query(collection(firestore, 'students'), where('branchId', '==', user.branchId));
     }
     return null;
-  }, [user, firestore]);
+  }, [user?.uid, user?.role, user?.branchId, firestore]);
 
   const paymentsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
+    if (!user || !firestore || !user.uid) return null;
     let q = query(collection(firestore, 'payments'), where('status', '==', 'pending'));
     if (user.role === 'branch_admin' && user.branchId) {
         q = query(q, where('branchId', '==', user.branchId));
     }
-    if (user.role === 'parent' || user.role === 'teacher') return null; // Parents view their own payments, not pending ones for all.
+    if (user.role === 'parent' || user.role === 'teacher') return null;
     
     return q;
-  }, [user, firestore]);
+  }, [user?.uid, user?.role, user?.branchId, firestore]);
 
   const { data: students, isLoading: studentsLoading } = useCollection(studentsQuery);
   const { data: payments, isLoading: paymentsLoading } = useCollection(paymentsQuery);
@@ -201,5 +201,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    

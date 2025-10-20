@@ -40,16 +40,16 @@ export default function AdminPayments() {
   const [rejectionReason, setRejectionReason] = useState('');
 
   const paymentsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
+    if (!firestore || !user || !user.uid) return null;
 
     if (user.role === 'super_admin') {
-        // This was causing permission errors. Disabling for now.
-        // A super_admin should probably view aggregated data or filtered lists,
-        // not a potentially huge list of all payments.
-        return null;
+      return query(
+        collection(firestore, 'payments'), 
+        where('status', '==', 'pending'),
+        limit(50)
+      );
     }
     
-    // Branch admin can only see payments for their branch
     if (user.role === 'branch_admin' && user.branchId) {
       return query(
         collection(firestore, 'payments'),
@@ -59,7 +59,7 @@ export default function AdminPayments() {
     }
     
     return null;
-  }, [firestore, user]);
+  }, [firestore, user?.uid, user?.role, user?.branchId]);
 
   const { data: payments, isLoading: paymentsLoading } = useCollection<PaymentRecord>(paymentsQuery);
 
@@ -244,5 +244,3 @@ export default function AdminPayments() {
     </Card>
   );
 }
-
-    
