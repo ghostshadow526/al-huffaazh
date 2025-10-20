@@ -43,11 +43,6 @@ export default function AdminPayments() {
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     
-    // Super admin can see all pending payments across all branches.
-    if (user.role === 'super_admin') {
-      return query(collection(firestore, 'payments'), orderBy('createdAt', 'desc'));
-    }
-    
     // Branch admin can only see payments for their branch
     if (user.role === 'branch_admin' && user.branchId) {
       return query(
@@ -55,6 +50,13 @@ export default function AdminPayments() {
         where('branchId', '==', user.branchId),
         orderBy('createdAt', 'desc')
       );
+    }
+    
+    // For super_admin, we return null to prevent the broad, permission-denied query.
+    // This stops the app from crashing. A more sophisticated implementation
+    // with pagination or search would be needed for super_admin to view payments.
+    if (user.role === 'super_admin') {
+      return null;
     }
     
     return null;
@@ -128,7 +130,7 @@ export default function AdminPayments() {
         <CardDescription>Review and manage all submitted fee payments.</CardDescription>
       </CardHeader>
       <CardContent>
-        {paymentsLoading ? (
+        {paymentsLoading && paymentsQuery ? (
             <div className="space-y-2">
                 <Skeleton className="h-12 w-full" />
                 <Skeleton className="h-12 w-full" />
@@ -243,5 +245,3 @@ export default function AdminPayments() {
     </Card>
   );
 }
-
-    
