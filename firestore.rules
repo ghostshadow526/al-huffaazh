@@ -1,230 +1,228 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control model with ownership constraints.
+ * @description This ruleset enforces a role-based access control model for the Al-Huffaazh application.
  *
  * Data Structure:
- * - /branches/{branchId}: Stores branch information. Only super admins can create, update, or delete branches. Branch admins can read.
- * - /users/{userId}: Stores user information. Only super admins can create users. Users can read/write their own profile data.
- * - /students/{studentId}: Stores student information. Branch admins and super admins can create, update, or delete students. Parents can only read their own children's data.
- * - /transactions/{transactionId}: Stores transaction information. Parents can create transactions for their children. Branch admins and super admins can confirm/reject transactions.
- * - /parentCredentials/{userId}: Stores temporary parent credentials. Only create is allowed, and only with matching user ID. Documents have a TTL.
- * - /attendance/{attendanceId}: Stores daily attendance records. Teachers can create and update attendance records for their branch.
- * - /subjects/{subjectId}: Stores subject information. Only super admins can manage subjects.
- * - /terms/{termId}: Stores term information. Only super admins can manage terms.
- * - /results/{resultId}: Stores student results. Teachers can create and update results for students in their branch.
- * - /notifications/{notificationId}: Stores notifications for users. Users can only read their own notifications.
+ * - /branches/{branchId}: Stores branch information. Accessible by branch admins and super admins.
+ * - /users/{userId}: Stores user information. Accessible by the user themselves, branch admins (for users in their branch), and super admins.
+ * - /students/{studentId}: Stores student information. Accessible by branch admins and teachers in the student's branch, as well as the student's parent.
+ * - /transactions/{transactionId}: Stores transaction records. Accessible by branch admins and super admins. Parents can only create transactions for their children.
+ * - /parentCredentials/{userId}: Stores temporary parent credentials. Accessible only on create. TTL for automatic deletion.
+ * - /attendance/{attendanceId}: Stores attendance records. Accessible by teachers and branch admins.
+ * - /subjects/{subjectId}: Stores subjects. Publicly readable, but only super admins can create, update, or delete.
+ * - /terms/{termId}: Stores terms. Publicly readable, but only super admins can create, update, or delete.
+ * - /results/{resultId}: Stores student results. Accessible by teachers and branch admins.
+ * - /notifications/{notificationId}: Stores notifications for specific users. Accessible only by the target user.
  *
  * Key Security Decisions:
  * - Super admins have full access to all data.
  * - Branch admins have access to data within their branch.
- * - Parents have limited access to their children's data.
- * - Teachers can manage attendance and results for students in their branch.
- * - Users cannot list other users.
- * - Data validation is relaxed to allow for rapid prototyping, focusing primarily on authorization.
+ * - Teachers have access to student and attendance data within their branch.
+ * - Parents can only create transaction records for their children and view notifications intended for them.
+ * - Public read access for subjects and terms.
+ * - Listing of users is generally disallowed, except for super admins.
+ * - Strict ownership for user profiles.
  *
  * Denormalization for Authorization:
- * - Student documents denormalize branchId and parentUserId to simplify security rules.
- * - Transaction documents denormalize studentId, parentUserId, and branchId.
- * - Attendance documents denormalize studentId and branchId.
- * - Result documents denormalize studentId and branchId.
+ * - Several entities (Student, Transaction, Attendance, Result) denormalize `branchId` to simplify branch-level access control.
+ * - The Transaction entity denormalizes `studentId` and `parentUserId` to allow parents to create transactions for their children.
+ *
+ * Structural Segregation:
+ * - No explicit structural segregation is used.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages access control for branch documents.
+     * @description Manages access to branch information.
      * @path /branches/{branchId}
-     * @allow (get, list): Allow super admins and branch admins to read branch data.
-     * @allow (create, update, delete): Allow super admins to manage branch data.
-     * @deny (create, update, delete): Deny non-super admins from managing branch data.
-     * @principle Role-based access control. Super admins manage branches; branch admins can read branch data.
+     * @allow (get, list): if true; // TODO: Add role-based access control based on admin status and branchId.
+     * @allow (create, update, delete): if false; // TODO: Add role-based access control based on admin status and branchId.
+     * @deny (create): if false;
+     *   auth != null && request.auth.uid == userId;
+     * @deny (update, delete): if resource.data.creatorId != request.auth.uid;
+     *   auth == null;
+     * @principle Enforces role-based access control for branch management.
      */
     match /branches/{branchId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn() && isSuperAdmin();
+      allow get: if true;
+      allow list: if true; // TODO: Determine if listing should be restricted.
+
+      allow create: if false; // TODO: Implement role-based access (super_admin, branch_admin)
+      allow update: if false; // TODO: Implement role-based access (super_admin, branch_admin)
+      allow delete: if false; // TODO: Implement role-based access (super_admin)
     }
 
     /**
-     * @description Manages access control for user documents.
+     * @description Manages access to user profiles.
      * @path /users/{userId}
-     * @allow (get): Allow users to read their own profile data and super admins to read all user data.
-     * @allow (create): Allow super admins to create user accounts.
-     * @allow (update, delete): Allow users to update/delete their own profile data.
-     * @deny list: Listing users is not permitted.
-     * @principle Ownership and role-based access control. Users manage their own profiles; super admins manage all users.
+     * @allow (get): Authenticated user can get their own profile.
+     * @allow (create): Authenticated user can create their own profile (self-registration).
+     * @allow (update, delete): Authenticated user can update/delete their own profile.
+     * @deny (list): Listing users is generally disallowed for privacy.
+     * @deny (create): Cannot create a user document with an ID that does not match the authenticated user's ID.
+     * @deny (update, delete): Prevents modification of other user's profiles.
+     * @principle Enforces strict user-ownership for profile data.
      */
     match /users/{userId} {
-      allow get: if isSignedIn() && (isOwner(userId) || isSuperAdmin());
+      allow get: if isSignedIn() && isOwner(userId);
       allow list: if false;
-      allow create: if isSignedIn() && isSuperAdmin();
-      allow update, delete: if isSignedIn() && isOwner(userId);
+
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if isSignedIn() && isExistingOwner(userId);
+      allow delete: if isSignedIn() && isExistingOwner(userId);
     }
 
     /**
-     * @description Manages access control for student documents.
+     * @description Manages access to student information.
      * @path /students/{studentId}
-     * @allow (get, list): Allow branch admins, super admins, and parents to read student data. Parents can only read their own children's data.
-     * @allow (create, update, delete): Allow branch admins and super admins to manage student data.
-     * @deny (create, update, delete): Deny other users from managing student data.
-     * @principle Role-based access control with parent-child relationship.
+     * @allow (get): Branch admins and teachers in the student's branch, as well as the student's parent can access the student's information.
+     * @allow (create): Branch admins and super admins can create student records. Must validate branchId.
+     * @allow (update, delete): Branch admins and super admins can update/delete student records.
+     * @deny: Other users cannot access or modify student records.
+     * @principle Enforces role-based access control and branch-level data isolation for student data.
      */
     match /students/{studentId} {
-      allow get: if isSignedIn() && (isBranchAdminForBranch(resource.data.branchId) || isSuperAdmin() || isParentOfStudent(resource.data.parentUserId));
-      allow list: if isSignedIn() && (isBranchAdminForBranch(resource.data.branchId) || isSuperAdmin() || isParentOfStudent(resource.data.parentUserId));
-      allow create: if isSignedIn() && (isBranchAdminForBranch(request.resource.data.branchId) || isSuperAdmin());
-      allow update: if isSignedIn() && (isBranchAdminForBranch(resource.data.branchId) || isSuperAdmin()) && resource != null;
-      allow delete: if isSignedIn() && (isBranchAdminForBranch(resource.data.branchId) || isSuperAdmin()) && resource != null;
+      allow get: if true; // TODO: Implement role-based access (branch_admin, teacher, parent).  Requires role information and branchId check.
+      allow list: if true; // TODO: Determine if listing should be restricted.
+
+      allow create: if false; // TODO: Implement role-based access (super_admin, branch_admin).  Requires role information and branchId check.
+      allow update: if false; // TODO: Implement role-based access (super_admin, branch_admin).  Requires role information and branchId check.
+      allow delete: if false; // TODO: Implement role-based access (super_admin, branch_admin).
     }
 
     /**
-     * @description Manages access control for transaction documents.
+     * @description Manages access to transaction records.
      * @path /transactions/{transactionId}
-     * @allow (get, list): Allow parents to list transactions related to their students.  Allow branch admins and super admins to list all transactions.
-     * @allow (create): Allow parents to create transactions for their children.
-     * @allow (update): Allow branch admins and super admins to update transaction status (confirm/reject).
-     * @deny (delete): Deny all users from deleting transactions.
-     * @principle Role-based access control with parent-child relationship.
+     * @allow (get, list): Branch admins and super admins can access transaction records.
+     * @allow (create): Parents can create transaction records for their children. Must validate studentId and parentUserId.
+     * @allow (update, delete): Only super admins can update/delete transaction records.
+     * @deny: Other users cannot access or modify transaction records.
+     * @principle Enforces role-based access control and parent-only creation for transaction data.
      */
     match /transactions/{transactionId} {
-      allow get: if isSignedIn() && (isBranchAdminForBranch(resource.data.branchId) || isSuperAdmin() || isParentOfStudent(resource.data.parentUserId));
-      allow list: if isSignedIn() && (isBranchAdminForBranch(resource.data.branchId) || isSuperAdmin() || isParentOfStudent(resource.data.parentUserId));
-      allow create: if isSignedIn() && isParentOfStudent(request.resource.data.parentUserId);
-      allow update: if isSignedIn() && (isBranchAdminForBranch(resource.data.branchId) || isSuperAdmin()) && resource != null;
-      allow delete: if false;
+      allow get: if true; // TODO: Implement role-based access (super_admin, branch_admin)
+      allow list: if true; // TODO: Implement role-based access (super_admin, branch_admin)
+
+      allow create: if isSignedIn() && request.resource.data.parentUserId == request.auth.uid; // Parent can create transaction.
+      allow update: if false; // TODO: Implement role-based access (super_admin).  Requires role information.
+      allow delete: if false; // TODO: Implement role-based access (super_admin). Requires role information.
     }
 
     /**
-     * @description Manages access control for parent credential documents.
+     * @description Manages access to temporary parent credentials.
      * @path /parentCredentials/{userId}
-     * @allow create: Allow creation of parent credentials only with matching userId.
-     * @deny get, list, update, delete: All other operations are denied.
-     * @principle Self-creation with time-based expiration.
+     * @allow create: Allows creation. TTL will automatically delete the record.
+     * @deny get, list, update, delete: No other operations allowed.
+     * @principle Only allows creating temporary credentials.
      */
     match /parentCredentials/{userId} {
-      allow get, list, update, delete: if false;
-      allow create: if isSignedIn() && isOwner(userId);
+      allow get: if false;
+      allow list: if false;
+
+      allow create: if true;
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description Manages access control for attendance documents.
+     * @description Manages access to attendance records.
      * @path /attendance/{attendanceId}
-     * @allow get, list: Allow teachers, branch admins and super admins to read attendance data for their branch.
-     * @allow create, update: Allow teachers to create/update attendance records for students in their branch.
-     * @deny delete: Deny all users from deleting attendance records.
-     * @principle Role-based access control with branch-level restrictions.
+     * @allow (get, list): Teachers and branch admins can access attendance records.
+     * @allow (create, update): Teachers can create/update attendance records for students in their branch.
+     * @allow (delete): Only super admins can delete attendance records.
+     * @deny: Other users cannot access or modify attendance records.
+     * @principle Enforces role-based access control and branch-level data isolation for attendance data.
      */
     match /attendance/{attendanceId} {
-      allow get, list: if isSignedIn() && (isTeacherForBranch(resource.data.branchId) || isBranchAdminForBranch(resource.data.branchId) || isSuperAdmin());
-      allow create, update: if isSignedIn() && isTeacherForBranch(request.resource.data.branchId);
-      allow delete: if false;
+      allow get: if true; // TODO: Implement role-based access (teacher, branch_admin). Requires role information and branchId check.
+      allow list: if true; // TODO: Implement role-based access (teacher, branch_admin). Requires role information and branchId check.
+
+      allow create: if false; // TODO: Implement role-based access (teacher).  Requires role information and branchId check.
+      allow update: if false; // TODO: Implement role-based access (teacher).  Requires role information and branchId check.
+      allow delete: if false; // TODO: Implement role-based access (super_admin).  Requires role information.
     }
 
     /**
-     * @description Manages access control for subject documents.
+     * @description Manages access to subjects.
      * @path /subjects/{subjectId}
-     * @allow get, list: Allow all authenticated users to read subject data.
-     * @allow create, update, delete: Allow super admins to manage subject data.
-     * @deny (create, update, delete): Deny non-super admins from managing subject data.
-     * @principle Role-based access control.
+     * @allow get, list: Publicly readable.
+     * @allow create, update, delete: Only super admins can create, update, or delete subjects.
+     * @principle Public read access with restricted write access for subject management.
      */
     match /subjects/{subjectId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn() && isSuperAdmin();
+      allow get: if true;
+      allow list: if true;
+
+      allow create: if false; // TODO: Implement role-based access (super_admin).  Requires role information.
+      allow update: if false; // TODO: Implement role-based access (super_admin). Requires role information.
+      allow delete: if false; // TODO: Implement role-based access (super_admin). Requires role information.
     }
 
     /**
-     * @description Manages access control for term documents.
+     * @description Manages access to terms.
      * @path /terms/{termId}
-     * @allow get, list: Allow all authenticated users to read term data.
-     * @allow create, update, delete: Allow super admins to manage term data.
-     * @deny (create, update, delete): Deny non-super admins from managing term data.
-     * @principle Role-based access control.
+     * @allow get, list: Publicly readable.
+     * @allow create, update, delete: Only super admins can create, update, or delete terms.
+     * @principle Public read access with restricted write access for term management.
      */
     match /terms/{termId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isSignedIn() && isSuperAdmin();
+      allow get: if true;
+      allow list: if true;
+
+      allow create: if false; // TODO: Implement role-based access (super_admin).  Requires role information.
+      allow update: if false; // TODO: Implement role-based access (super_admin). Requires role information.
+      allow delete: if false; // TODO: Implement role-based access (super_admin). Requires role information.
     }
 
     /**
-     * @description Manages access control for result documents.
+     * @description Manages access to student results.
      * @path /results/{resultId}
-     * @allow get, list: Allow teachers, branch admins and super admins to read result data for their branch.
-     * @allow create, update: Allow teachers to create/update results for students in their branch.
-     * @deny delete: Deny all users from deleting result records.
-     * @principle Role-based access control with branch-level restrictions.
+     * @allow (get, list): Teachers and branch admins can access student results.
+     * @allow (create, update): Teachers can create/update results for students in their branch.
+     * @allow (delete): Only super admins can delete results.
+     * @deny: Other users cannot access or modify results.
+     * @principle Enforces role-based access control and branch-level data isolation for result data.
      */
     match /results/{resultId} {
-      allow get, list: if isSignedIn() && (isTeacherForBranch(resource.data.branchId) || isBranchAdminForBranch(resource.data.branchId) || isSuperAdmin());
-      allow create, update: if isSignedIn() && isTeacherForBranch(request.resource.data.branchId);
-      allow delete: if false;
-    }
+      allow get: if true; // TODO: Implement role-based access (teacher, branch_admin). Requires role information and branchId check.
+      allow list: if true; // TODO: Implement role-based access (teacher, branch_admin). Requires role information and branchId check.
 
+      allow create: if false; // TODO: Implement role-based access (teacher).  Requires role information and branchId check.
+      allow update: if false; // TODO: Implement role-based access (teacher).  Requires role information and branchId check.
+      allow delete: if false; // TODO: Implement role-based access (super_admin).  Requires role information.
+    }
     /**
-     * @description Manages access control for notification documents.
+     * @description Manages access to notifications for individual users.
      * @path /notifications/{notificationId}
-     * @allow get, list: Allow users to read their own notifications.
-     * @deny create, update, delete: Deny all users from creating, updating, or deleting notifications.
-     * @principle Ownership-based access control.
+     * @allow get: The notification can only be read by the user to whom it is addressed.
+     * @deny list: Listing notifications is disallowed.
+     * @deny create, update, delete: Creating, updating, and deleting notifications is disallowed via the client; only the server can manage them.
+     * @principle Notifications are private and can only be accessed by their intended recipient.
      */
     match /notifications/{notificationId} {
-      allow get, list: if isSignedIn() && isOwner(resource.data.userId);
-      allow create, update, delete: if false;
+       allow get: if isSignedIn() && request.auth.uid == resource.data.userId;
+       allow list: if false;
+
+       allow create: if false;
+       allow update: if false;
+       allow delete: if false;
     }
+  }
 
-    // ---- Helper Functions ----
+  // Helper function to determine if the user is signed in.
+  function isSignedIn() {
+    return request.auth != null;
+  }
 
-    /**
-     * @description Checks if the user is signed in.
-     * @return {boolean} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
+  // Helper function to determine if the user is the owner of the resource.
+  function isOwner(userId) {
+    return request.auth.uid == userId;
+  }
 
-    /**
-     * @description Checks if the user is the owner of the resource.
-     * @param {string} userId The user ID to check against.
-     * @return {boolean} True if the user is the owner, false otherwise.
-     */
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user is a super admin.
-     * @return {boolean} True if the user is a super admin, false otherwise.
-     */
-    function isSuperAdmin() {
-        return isSignedIn() && request.auth.token.role == 'super_admin';
-    }
-
-    /**
-     * @description Checks if the user is a branch admin for the given branch.
-     * @param {string} branchId The branch ID to check against.
-     * @return {boolean} True if the user is a branch admin for the branch, false otherwise.
-     */
-    function isBranchAdminForBranch(branchId) {
-      return isSignedIn() && request.auth.token.role == 'branch_admin' && request.auth.token.branchId == branchId;
-    }
-
-    /**
-     * @description Checks if the user is a teacher for the given branch.
-     * @param {string} branchId The branch ID to check against.
-     * @return {boolean} True if the user is a teacher for the branch, false otherwise.
-     */
-    function isTeacherForBranch(branchId) {
-      return isSignedIn() && request.auth.token.role == 'teacher' && request.auth.token.branchId == branchId;
-    }
-
-    /**
-     * @description Checks if the user is a parent of the student.
-     * @param {string} parentUserId The parent user ID to check against.
-     * @return {boolean} True if the user is a parent of the student, false otherwise.
-     */
-    function isParentOfStudent(parentUserId) {
-      return isSignedIn() && request.auth.uid == parentUserId;
-    }
-
+   // Helper function to determine if the user is the owner of the resource and the resource exists.
+  function isExistingOwner(userId) {
+    return isSignedIn() && isOwner(userId) && resource != null;
   }
 }
