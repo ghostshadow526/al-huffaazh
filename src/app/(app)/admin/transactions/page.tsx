@@ -45,8 +45,16 @@ export default function AdminTransactionsPage() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // NOTE: This query is disabled to prevent permission errors without security rules.
-  const transactionsQuery = null;
+  const transactionsQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    if (user.role === 'super_admin') {
+      return collection(firestore, 'transactions');
+    }
+    if (user.role === 'branch_admin') {
+      return query(collection(firestore, 'transactions'), where('branchId', '==', user.branchId));
+    }
+    return null;
+  }, [user, firestore]);
   
   const { data: allTransactions, isLoading } = useCollection<Transaction>(transactionsQuery);
 
@@ -211,7 +219,7 @@ export default function AdminTransactionsPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">No transaction submissions found. This may be due to missing database permissions.</TableCell>
+                  <TableCell colSpan={6} className="h-24 text-center">No transaction submissions found.</TableCell>
                 </TableRow>
               )}
             </TableBody>
