@@ -42,14 +42,14 @@ export default function AdminPayments() {
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-
+    
+    // Super admin sees all payments across all branches.
     if (user.role === 'super_admin') {
-      // Super admin can see all payments, ordered by creation date
       return query(collection(firestore, 'payments'), orderBy('createdAt', 'desc'));
     }
     
+    // Branch admin can only see payments for their branch
     if (user.role === 'branch_admin' && user.branchId) {
-      // Branch admin can only see payments for their branch
       return query(
         collection(firestore, 'payments'),
         where('branchId', '==', user.branchId),
@@ -66,6 +66,16 @@ export default function AdminPayments() {
   const handlePaymentStatusChange = async (payment: PaymentRecord, newStatus: 'confirmed' | 'rejected', reason?: string) => {
     if (!firestore || !user) return;
     
+    // Only super_admin can confirm or reject
+    if (user.role !== 'super_admin') {
+      toast({
+        variant: 'destructive',
+        title: 'Permission Denied',
+        description: 'Only Super Admins can update payment status.',
+      });
+      return;
+    }
+
     const paymentRef = doc(firestore, 'payments', payment.id);
     const notificationRef = doc(collection(firestore, 'notifications'));
     const batch = writeBatch(firestore);
@@ -162,7 +172,7 @@ export default function AdminPayments() {
                     <AlertDialog>
                        <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0" disabled={payment.status !== 'pending' || (user?.role !== 'super_admin' && user?.role !== 'branch_admin')}>
+                              <Button variant="ghost" className="h-8 w-8 p-0" disabled={payment.status !== 'pending'}>
                                   <span className="sr-only">Open menu</span>
                                   <MoreHorizontal className="h-4 w-4" />
                               </Button>
@@ -172,7 +182,7 @@ export default function AdminPayments() {
                               <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                                 <a href={payment.receiptUrl} target="_blank" rel="noopener noreferrer" className="w-full">View Receipt</a>
                               </DropdownMenuItem>
-                              {(user?.role === 'super_admin' || user?.role === 'branch_admin') && (
+                              {user?.role === 'super_admin' && (
                                 <>
                                   <DropdownMenuItem
                                     onClick={() => handlePaymentStatusChange(payment, 'confirmed')}
@@ -241,3 +251,5 @@ export default function AdminPayments() {
     </Card>
   );
 }
+
+    
