@@ -1,115 +1,141 @@
 /**
  * @file Firestore Security Rules
- * @description This ruleset enforces a role-based access control system with varying levels of access.
- *
- * Data Structure:
- * - /branches/{branchId}: Stores branch information. Publicly readable.
- * - /users/{userId}: Stores user information. Owner-only read/write access.
- * - /students/{studentId}: Stores student information. Publicly readable.
- * - /transactions/{transactionId}: Stores transaction records. Publicly readable.
- * - /parentCredentials/{userId}: Stores temporary parent credentials. Owner-only access, TTL-based deletion handled by backend.
- * - /attendance/{attendanceId}: Stores student attendance records. Publicly readable.
- * - /subjects/{subjectId}: Stores subject information. Publicly readable.
- * - /terms/{termId}: Stores term information. Publicly readable.
- * - /results/{resultId}: Stores student results. Publicly readable.
- * - /notifications/{notificationId}: Stores notifications for users. Owner-only access.
- *
- * Key Security Decisions:
- * - Public Read Access: The `branches`, `students`, `transactions`, `subjects`, `terms`, and `results` collections are publicly readable, assuming appropriate data exposure considerations are handled in the application.
- * - Owner-Only Write Access: The `users` and `notifications` collections are strictly owner-only for write operations.
- * - Self-Creation: Users can create their own user document, which is essential for account creation.
- * - Denormalization:  The `Student` and `Transaction` entities denormalize `branchId` to simplify branch-level queries and enforce security at the branch level if needed.
+ * @core_philosophy This ruleset enforces a role-based access control model,
+ * with specific rules for different user roles (super_admin, branch_admin, teacher, parent).
+ * It prioritizes security by restricting data access based on user roles and
+ * affiliations (e.g., branchId). Data ownership is enforced where applicable.
+ * @data_structure
+ * - /branches/{branchId}: Stores branch information.
+ * - /users/{userId}: Stores user information, including roles and branchId.
+ * - /students/{studentId}: Stores student information. Includes denormalized
+ *   branchId and parentUserId for simpler queries.
+ * - /transactions/{transactionId}: Stores transaction records. Includes
+ *   denormalized studentId, parentUserId, and branchId.
+ * - /parentCredentials/{userId}: Stores temporary parent credentials.
+ * - /attendance/{attendanceId}: Stores student attendance records.
+ * - /subjects/{subjectId}: Stores subject information.
+ * - /terms/{termId}: Stores term information.
+ * - /results/{resultId}: Stores student results.
+ * - /notifications/{notificationId}: Stores notifications for users.
+ * @key_security_decisions
+ * - Users can only read/write their own user document.
+ * - Branches are publicly readable but only writable by super admins.
+ * - Students are readable by branch admins and parents of the student.
+ * - Transactions are readable by branch admins and parents of the student.
+ * - ParentCredentials can only be created and are automatically deleted after a TTL.
+ * - Subjects and Terms are publicly readable but not writable by clients.
+ * - Results are created and managed by teachers.
+ * - Notifications are user-specific.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows read-only access to branch information.
+     * @description Manages branch information. Super admins can create, update and delete branches.
+     *              Other users can read branch information.
      * @path /branches/{branchId}
-     * @allow (get, list) Any user can read branch information.
-     * @deny (create, update, delete) No user can create, update, or delete branch information through the client.
-     * @principle Publicly readable data.
+     * @allow (get, list): if true;
+     * @allow (create, update, delete): if request.auth != null && hasRole(['super_admin']);
+     * @deny (create, update, delete): if request.auth == null;
+     * @principle Enforces role-based access control and allows public reads.
      */
     match /branches/{branchId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if isSignedIn() && hasRole(['super_admin']);
     }
 
     /**
-     * @description Enforces owner-only access for user profiles. Users can only read and write their own profile data.
+     * @description Manages user information. Users can only read/write their own user document.
      * @path /users/{userId}
-     * @allow (create) Authenticated user can create their own profile if the userId matches their auth.uid.
-     * @allow (get, list) Authenticated user can read their own profile if the userId matches their auth.uid.
-     * @allow (update, delete) Authenticated user can update/delete their own profile if the userId matches their auth.uid.
-     * @deny (create, update, delete) If the userId does not match auth.uid.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     * @allow (get): if request.auth.uid == userId;
+     * @allow (create): if request.auth.uid == userId;
+     * @allow (update): if request.auth.uid == userId && resource != null;
+     * @allow (list, delete): if false;
+     * @deny (get): if request.auth.uid != userId;
+     * @deny (create): if request.auth.uid != userId;
+     * @deny (update): if request.auth.uid != userId;
+     * @principle Enforces document ownership for user profiles.
      */
     match /users/{userId} {
-      allow get, list: if isOwner(userId);
+      allow get: if isOwner(userId);
+      allow list: if false;
       allow create: if isOwner(userId);
       allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow delete: if false;
     }
 
     /**
-     * @description Allows read-only access to student information.
+     * @description Manages student information. Branch admins can create, update, and delete student records.
+     *              Parents can read student data if the `parentUserId` matches their UID.
      * @path /students/{studentId}
-     * @allow (get, list) Any user can read student information.
-     * @deny (create, update, delete) No user can create, update, or delete student information through the client.
-     * @principle Publicly readable data.
+     * @allow (get, list): if isSignedIn() && (hasRole(['branch_admin']) || isParentOfStudent(studentId));
+     * @allow (create): if isSignedIn() && hasRole(['branch_admin']);
+     * @allow (update, delete): if isSignedIn() && hasRole(['branch_admin']) && resource != null;
+     * @deny (get, list): if !isSignedIn() || (!hasRole(['branch_admin']) && !isParentOfStudent(studentId));
+     * @deny (create, update, delete): if !isSignedIn() || !hasRole(['branch_admin']);
+     * @principle Enforces role-based access control and parent-level access.
      */
     match /students/{studentId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow get, list: if isSignedIn() && (hasRole(['branch_admin']) || isParentOfStudent(studentId));
+      allow create: if isSignedIn() && hasRole(['branch_admin']);
+      allow update, delete: if isSignedIn() && hasRole(['branch_admin']);
     }
 
     /**
-     * @description Allows read-only access to transaction records.
+     * @description Manages transaction records. Branch admins can create, update, and delete transactions.
+     *              Parents can read transactions if the `parentUserId` matches their UID.
      * @path /transactions/{transactionId}
-     * @allow (get, list) Any user can read transaction records.
-     * @deny (create, update, delete) No user can create, update, or delete transaction records through the client.
-     * @principle Publicly readable data.
+     * @allow (get, list): if isSignedIn() && (hasRole(['branch_admin']) || isParentOfTransaction(transactionId));
+     * @allow (create): if isSignedIn() && hasRole(['branch_admin']);
+     * @allow (update, delete): if isSignedIn() && hasRole(['branch_admin']) && resource != null;
+     * @deny (get, list): if !isSignedIn() || (!hasRole(['branch_admin']) && !isParentOfTransaction());
+     * @deny (create, update, delete): if !isSignedIn() || !hasRole(['branch_admin']);
+     * @principle Enforces role-based access control and parent-level access to transactions.
      */
     match /transactions/{transactionId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow get, list: if isSignedIn() && (hasRole(['branch_admin']) || isParentOfTransaction(transactionId));
+      allow create: if isSignedIn() && hasRole(['branch_admin']);
+      allow update, delete: if isSignedIn() && hasRole(['branch_admin']);
     }
 
     /**
-     * @description Restricts access to temporary parent credentials to the owner only.
+     * @description Manages temporary parent credentials. Only creation is allowed and documents are TTL'd.
      * @path /parentCredentials/{userId}
-     * @allow (create) Authenticated user can create their own parent credential if the userId matches their auth.uid.
-     * @allow (get, list) Authenticated user can read their own parent credential if the userId matches their auth.uid.
-     * @allow (update, delete) Authenticated user can update/delete their own parent credential if the userId matches their auth.uid.
-     * @deny (create, update, delete) If the userId does not match auth.uid.
-     * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
+     * @allow create: if true; // Needs to be created from backend.
+     * @deny get, list, update, delete: if true;
+     * @principle Restricts access to parent credentials to only creation.
      */
     match /parentCredentials/{userId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow get, list, update, delete: if false;
+      allow create: if true; // Needs to be created from backend.
     }
 
     /**
-     * @description Allows read-only access to attendance records.
+     * @description Manages attendance records. Teachers can create and update attendance records.
+     *              Branch admins can read attendance records.
      * @path /attendance/{attendanceId}
-     * @allow (get, list) Any user can read attendance records.
-     * @deny (create, update, delete) No user can create, update, or delete attendance records through the client.
-     * @principle Publicly readable data.
+     * @allow (get, list): if isSignedIn() && hasRole(['branch_admin']);
+     * @allow (create): if isSignedIn() && hasRole(['teacher']);
+     * @allow (update): if isSignedIn() && hasRole(['teacher']) && resource != null;
+     * @allow delete: if false;
+     * @deny (get, list): if !isSignedIn() || !hasRole(['branch_admin']);
+     * @deny (create, update): if !isSignedIn() || !hasRole(['teacher']);
+     * @principle Enforces role-based access control for attendance records.
      */
     match /attendance/{attendanceId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow get, list: if isSignedIn() && hasRole(['branch_admin']);
+      allow create: if isSignedIn() && hasRole(['teacher']);
+      allow update: if isSignedIn() && hasRole(['teacher']);
+      allow delete: if false;
     }
 
     /**
-     * @description Allows read-only access to subject information.
+     * @description Manages subjects. Publicly readable, but not writable by clients.
      * @path /subjects/{subjectId}
-     * @allow (get, list) Any user can read subject information.
-     * @deny (create, update, delete) No user can create, update, or delete subject information through the client.
-     * @principle Publicly readable data.
+     * @allow get, list: if true;
+     * @deny create, update, delete: if true;
+     * @principle Allows public reads, but denies any write operations.
      */
     match /subjects/{subjectId} {
       allow get, list: if true;
@@ -117,11 +143,11 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows read-only access to term information.
+     * @description Manages terms. Publicly readable, but not writable by clients.
      * @path /terms/{termId}
-     * @allow (get, list) Any user can read term information.
-     * @deny (create, update, delete) No user can create, update, or delete term information through the client.
-     * @principle Publicly readable data.
+     * @allow get, list: if true;
+     * @deny create, update, delete: if true;
+     * @principle Allows public reads, but denies any write operations.
      */
     match /terms/{termId} {
       allow get, list: if true;
@@ -129,44 +155,72 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows read-only access to result information.
+     * @description Manages student results. Teachers can create and update results.
+     *              Branch admins can read results. Parents can read their child's results.
      * @path /results/{resultId}
-     * @allow (get, list) Any user can read result information.
-     * @deny (create, update, delete) No user can create, update, or delete result information through the client.
-     * @principle Publicly readable data.
+     *  @allow (get, list): if isSignedIn() && (hasRole(['teacher', 'branch_admin']) || isParentOfStudentResult());
+     * @allow (create, update): if isSignedIn() && hasRole(['teacher']);
+     * @allow delete: if false;
+     * @principle Role-based access control for managing student results.
      */
     match /results/{resultId} {
-      allow get, list: if true;
-      allow create, update, delete: if false;
+      allow get, list: if isSignedIn() && (hasRole(['teacher', 'branch_admin']) || isParentOfStudentResult(resultId));
+      allow create, update: if isSignedIn() && hasRole(['teacher']);
+      allow delete: if false;
     }
 
-   /**
-    * @description Enforces owner-only access for user notifications. Users can only read and write their own notifications.
-    * @path /notifications/{notificationId}
-    * @allow (create) Authenticated user can create a notification if the userId matches their auth.uid.
-    * @allow (get, list) Authenticated user can read notifications if the userId matches their auth.uid.
-    * @allow (update, delete) Authenticated user can update/delete notifications if the userId matches their auth.uid and document exists.
-    * @deny (create, update, delete) If the userId does not match auth.uid.
-    * @principle Enforces document ownership for writes and restricts access to a user's own data tree.
-    */
-    match /notifications/{notificationId} {
-      allow get, list: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
-      allow update: if isExistingOwner(resource.data.userId);
-      allow delete: if isExistingOwner(resource.data.userId);
-    }
-
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
+    /**
+     * @description Manages notifications for users.  Users can only read/write their own notifications.
+     * @path /notifications/{notificationId}
+     * @allow get, list, create, update, delete: if request.auth.uid == resource.data.userId;
+     * @principle Enforces ownership such that users can only manage their own notifications.
+     */
+     match /notifications/{notificationId} {
+        allow get: if isSignedIn() && get(/databases/$(database)/documents/notifications/$(notificationId)).data.userId == request.auth.uid;
+        allow list: if isSignedIn() && get(/databases/$(database)/documents/notifications/$(notificationId)).data.userId == request.auth.uid;
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+        allow update: if isSignedIn() && get(/databases/$(database)/documents/notifications/$(notificationId)).data.userId == request.auth.uid;
+        allow delete: if isSignedIn() && get(/databases/$(database)/documents/notifications/$(notificationId)).data.userId == request.auth.uid;
     }
   }
+
+  // Helper functions
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  function isOwner(userId) {
+    return request.auth.uid == userId;
+  }
+
+  function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+  }
+
+  function hasRole(roles) {
+    return isSignedIn() && hasAllRoles(roles);
+  }
+
+  function hasAllRoles(roles) {
+    return roles.hasAny(request.auth.token.role);
+  }
+
+  function isParentOfStudent(studentId) {
+      return get(/databases/$(database)/documents/students/$(studentId)).data.parentUserId == request.auth.uid;
+  }
+
+  function isParentOfTransaction(transactionId) {
+    return get(/databases/$(database)/documents/transactions/$(transactionId)).data.parentUserId == request.auth.uid;
+  }
+
+  function isParentOfStudentResult(resultId) {
+    let studentId = get(/databases/$(database)/documents/results/$(resultId)).data.studentId;
+    return studentId != null &&
+           get(/databases/$(database)/documents/students/$(studentId)).data.parentUserId == request.auth.uid;
+  }
+
+    function getSelfUserId() {
+    return resource.data.userId;
+  }
+
 }
