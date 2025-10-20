@@ -152,36 +152,36 @@
         "parentEmail"
       ]
     },
-    "Transaction": {
+    "Receipt": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Transaction",
+      "title": "Receipt",
       "type": "object",
-      "description": "Represents a transaction record.",
+      "description": "Represents a payment receipt record uploaded by a parent.",
       "properties": {
         "studentId": { "type": "string", "description": "Reference to Student." },
         "studentName": { "type": "string", "description": "Denormalized student name." },
         "parentUserId": { "type": "string", "description": "Reference to User (Parent)." },
+        "parentEmail": { "type": "string", "description": "Denormalized parent email." },
         "branchId": { "type": "string", "description": "Denormalized branchId for querying." },
         "amount": { "type": "number", "description": "Amount paid." },
-        "reason": { "type": "string", "enum": ["school_fees", "excursion", "other"], "description": "Reason for the transaction." },
-        "otherReason": { "type": "string", "description": "Details if reason is 'other'." },
-        "receiptUrl": { "type": "string", "description": "URL of the fee receipt image stored in ImageKit.", "format": "uri" },
-        "status": { "type": "string", "description": "Status of the transaction.", "enum": ["pending", "confirmed", "rejected"] },
-        "createdAt": { "type": "string", "description": "Timestamp of when the transaction record was created.", "format": "date-time" },
-        "confirmedBy": { "type": "string", "description": "Reference to User (Admin) who confirmed the transaction." },
-        "confirmedAt": { "type": "string", "description": "Timestamp of when the transaction was confirmed.", "format": "date-time" },
-        "rejectionReason": { "type": "string", "description": "Reason for transaction rejection." }
+        "reason": { "type": "string", "description": "Reason for the payment (e.g., school fees)." },
+        "fileUrl": { "type": "string", "description": "URL of the receipt image stored in ImageKit.", "format": "uri" },
+        "status": { "type": "string", "description": "Status of the receipt.", "enum": ["pending", "approved", "rejected"] },
+        "uploadedAt": { "type": "string", "description": "Timestamp of when the receipt record was created.", "format": "date-time" },
+        "verifiedBy": { "type": "string", "description": "Reference to User (Admin) who verified the receipt." },
+        "rejectionReason": { "type": "string", "description": "Reason for receipt rejection." }
       },
       "required": [
         "studentId",
         "studentName",
         "parentUserId",
+        "parentEmail",
         "branchId",
         "amount",
         "reason",
-        "receiptUrl",
+        "fileUrl",
         "status",
-        "createdAt"
+        "uploadedAt"
       ]
     },
     "ParentCredential": {
@@ -320,12 +320,12 @@
         }
       },
       {
-        "path": "/transactions/{transactionId}",
+        "path": "/receipts/{receiptId}",
         "definition": {
           "schema": {
-            "$ref": "#/entities/Transaction"
+            "$ref": "#/entities/Receipt"
           },
-          "description": "Stores transaction information with denormalized studentId, parentUserId, and branchId for efficient and secure querying."
+          "description": "Stores payment receipt information with denormalized studentId, parentUserId, and branchId for efficient and secure querying."
         }
       },
       {
@@ -375,3 +375,5 @@
     ]
   }
 }
+
+    

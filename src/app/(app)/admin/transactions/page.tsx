@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, doc, writeBatch, updateDoc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +18,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
-interface Transaction {
+interface Receipt {
   id: string;
   studentId: string;
   studentName: string;
@@ -26,11 +26,10 @@ interface Transaction {
   branchId: string;
   amount: number;
   reason: string;
-  receiptUrl: string;
-  status: 'pending' | 'confirmed' | 'rejected';
-  createdAt: { seconds: number; nanoseconds: number };
-  confirmedBy?: string;
-  confirmedAt?: { seconds: number; nanoseconds: number };
+  fileUrl: string;
+  status: 'pending' | 'approved' | 'rejected';
+  uploadedAt: { seconds: number; nanoseconds: number };
+  verifiedBy?: string;
   rejectionReason?: string;
 }
 
@@ -39,51 +38,50 @@ export default function AdminTransactionsPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  const [filter, setFilter] = useState<'pending' | 'confirmed' | 'rejected' | 'all'>('pending');
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [filter, setFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+  const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   
-  const transactionsQuery = useMemoFirebase(() => {
+  const receiptsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     
     if (user.role === 'super_admin') {
-      return collection(firestore, 'transactions');
+      return collection(firestore, 'receipts');
     }
     if (user.role === 'branch_admin' && user.branchId) {
-      return query(collection(firestore, 'transactions'), where('branchId', '==', user.branchId));
+      return query(collection(firestore, 'receipts'), where('branchId', '==', user.branchId));
     }
     return null;
   }, [user, firestore]);
   
-  const { data: allTransactions, isLoading } = useCollection<Transaction>(transactionsQuery);
+  const { data: allReceipts, isLoading } = useCollection<Receipt>(receiptsQuery);
 
-  const filteredTransactions = React.useMemo(() => {
-    if (!allTransactions) return [];
-    if (filter === 'all') return allTransactions;
-    return allTransactions.filter(t => t.status === filter);
-  }, [allTransactions, filter]);
+  const filteredReceipts = React.useMemo(() => {
+    if (!allReceipts) return [];
+    if (filter === 'all') return allReceipts;
+    return allReceipts.filter(t => t.status === filter);
+  }, [allReceipts, filter]);
 
 
-  const handleConfirm = async (transaction: Transaction) => {
+  const handleApprove = async (receipt: Receipt) => {
     if (!firestore || !user) return;
     setIsProcessing(true);
 
-    const transactionDocRef = doc(firestore, 'transactions', transaction.id);
+    const receiptDocRef = doc(firestore, 'receipts', receipt.id);
     const notificationDocRef = doc(collection(firestore, 'notifications'));
     
     const batch = writeBatch(firestore);
 
-    batch.update(transactionDocRef, {
-        status: 'confirmed',
-        confirmedBy: user.uid,
-        confirmedAt: new Date(),
+    batch.update(receiptDocRef, {
+        status: 'approved',
+        verifiedBy: user.uid,
     });
 
     batch.set(notificationDocRef, {
-        userId: transaction.parentUserId,
-        message: `Your payment of ₦${transaction.amount.toLocaleString()} for ${transaction.studentName} has been confirmed.`,
+        userId: receipt.parentUserId,
+        message: `Your payment of ₦${receipt.amount.toLocaleString()} for ${receipt.studentName} has been approved.`,
         link: `/transactions`,
         read: false,
         createdAt: new Date(),
@@ -91,7 +89,7 @@ export default function AdminTransactionsPage() {
 
     try {
         await batch.commit();
-        toast({ title: 'Transaction Confirmed', description: 'The parent has been notified.'});
+        toast({ title: 'Receipt Approved', description: 'The parent has been notified.'});
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
@@ -99,31 +97,32 @@ export default function AdminTransactionsPage() {
     }
   };
 
-  const openRejectDialog = (transaction: Transaction) => {
-    setSelectedTransaction(transaction);
+  const openRejectDialog = (receipt: Receipt) => {
+    setSelectedReceipt(receipt);
     setIsRejectDialogOpen(true);
   };
 
   const handleReject = async () => {
-    if (!firestore || !selectedTransaction || !rejectionReason.trim()) {
+    if (!firestore || !selectedReceipt || !rejectionReason.trim()) {
         toast({ variant: 'destructive', title: 'Error', description: 'Please provide a reason for rejection.' });
         return;
     };
     setIsProcessing(true);
 
-    const transactionDocRef = doc(firestore, 'transactions', selectedTransaction.id);
+    const receiptDocRef = doc(firestore, 'receipts', selectedReceipt.id);
     const notificationDocRef = doc(collection(firestore, 'notifications'));
 
     const batch = writeBatch(firestore);
 
-    batch.update(transactionDocRef, {
+    batch.update(receiptDocRef, {
         status: 'rejected',
         rejectionReason: rejectionReason,
+        verifiedBy: user?.uid,
     });
     
     batch.set(notificationDocRef, {
-        userId: selectedTransaction.parentUserId,
-        message: `Your payment for ${selectedTransaction.studentName} was rejected. Reason: ${rejectionReason}`,
+        userId: selectedReceipt.parentUserId,
+        message: `Your payment for ${selectedReceipt.studentName} was rejected. Reason: ${rejectionReason}`,
         link: `/transactions`,
         read: false,
         createdAt: new Date(),
@@ -131,10 +130,10 @@ export default function AdminTransactionsPage() {
 
     try {
         await batch.commit();
-        toast({ title: 'Transaction Rejected', description: 'The parent has been notified.' });
+        toast({ title: 'Receipt Rejected', description: 'The parent has been notified.' });
         setIsRejectDialogOpen(false);
         setRejectionReason('');
-        setSelectedTransaction(null);
+        setSelectedReceipt(null);
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
@@ -142,12 +141,12 @@ export default function AdminTransactionsPage() {
     }
   };
 
-  const getStatusBadge = (status: Transaction['status']) => {
+  const getStatusBadge = (status: Receipt['status']) => {
     switch (status) {
       case 'pending':
         return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800"><Clock className="mr-1 h-3 w-3" />Pending</Badge>;
-      case 'confirmed':
-        return <Badge variant="default" className="bg-green-100 text-green-800"><CheckCircle className="mr-1 h-3 w-3" />Confirmed</Badge>;
+      case 'approved':
+        return <Badge variant="default" className="bg-green-100 text-green-800"><CheckCircle className="mr-1 h-3 w-3" />Approved</Badge>;
       case 'rejected':
         return <Badge variant="destructive"><XCircle className="mr-1 h-3 w-3" />Rejected</Badge>;
     }
@@ -156,14 +155,14 @@ export default function AdminTransactionsPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Manage Transactions</CardTitle>
-        <CardDescription>Review and approve or reject payment submissions from parents.</CardDescription>
+        <CardTitle>Verify Receipts</CardTitle>
+        <CardDescription>Review and approve or reject payment receipts from parents.</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs value={filter} onValueChange={(value) => setFilter(value as any)}>
           <TabsList>
             <TabsTrigger value="pending">Pending</TabsTrigger>
-            <TabsTrigger value="confirmed">Confirmed</TabsTrigger>
+            <TabsTrigger value="approved">Approved</TabsTrigger>
             <TabsTrigger value="rejected">Rejected</TabsTrigger>
             <TabsTrigger value="all">All</TabsTrigger>
           </TabsList>
@@ -187,8 +186,8 @@ export default function AdminTransactionsPage() {
                     <TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell>
                   </TableRow>
                 ))
-              ) : filteredTransactions && filteredTransactions.length > 0 ? (
-                filteredTransactions.map((t) => (
+              ) : filteredReceipts && filteredReceipts.length > 0 ? (
+                filteredReceipts.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell>
                       <div className="font-medium">{t.studentName}</div>
@@ -196,22 +195,20 @@ export default function AdminTransactionsPage() {
                     </TableCell>
                     <TableCell>{t.amount.toLocaleString()}</TableCell>
                     <TableCell>{t.reason}</TableCell>
-                    <TableCell>{t.createdAt ? formatDistanceToNow(new Date(t.createdAt.seconds * 1000), { addSuffix: true }) : 'N/A'}</TableCell>
+                    <TableCell>{t.uploadedAt ? formatDistanceToNow(new Date(t.uploadedAt.seconds * 1000), { addSuffix: true }) : 'N/A'}</TableCell>
                     <TableCell>{getStatusBadge(t.status)}</TableCell>
                     <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
                             <Button asChild variant="outline" size="sm">
-                                <a href={t.receiptUrl} target="_blank" rel="noopener noreferrer">View Receipt</a>
+                                <a href={t.fileUrl} target="_blank" rel="noopener noreferrer">View Receipt</a>
                             </Button>
-                            {t.status === 'pending' && (
+                            {t.status === 'pending' && user?.role === 'super_admin' && (
                                 <>
-                                    {user?.role === 'super_admin' && (
-                                      <Button size="sm" onClick={() => handleConfirm(t)} className="bg-green-600 hover:bg-green-700" disabled={isProcessing}>
-                                          {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                          Confirm
-                                      </Button>
-                                    )}
-                                    <Button size="sm" variant="destructive" onClick={() => openRejectDialog(t)} disabled={isProcessing}>Reject</Button>
+                                  <Button size="sm" onClick={() => handleApprove(t)} className="bg-green-600 hover:bg-green-700" disabled={isProcessing}>
+                                      {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                      Approve
+                                  </Button>
+                                  <Button size="sm" variant="destructive" onClick={() => openRejectDialog(t)} disabled={isProcessing}>Reject</Button>
                                 </>
                             )}
                         </div>
@@ -220,7 +217,7 @@ export default function AdminTransactionsPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">No transaction submissions found.</TableCell>
+                  <TableCell colSpan={6} className="h-24 text-center">No receipts found for this filter.</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -231,9 +228,9 @@ export default function AdminTransactionsPage() {
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reject Transaction</DialogTitle>
+            <DialogTitle>Reject Receipt</DialogTitle>
             <DialogDescription>
-              Please provide a reason for rejecting this transaction. This will be sent to the parent.
+              Please provide a reason for rejecting this receipt. This will be sent to the parent.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -259,3 +256,5 @@ export default function AdminTransactionsPage() {
     </Card>
   );
 }
+
+    
