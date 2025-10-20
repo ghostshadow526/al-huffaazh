@@ -9,13 +9,7 @@ import { getFirestore, Firestore } from 'firebase/firestore';
 // IMPORTANT: This is the core Firebase initialization logic.
 // It ensures that Firebase is initialized only once.
 export function initializeFirebase() {
-  let app: FirebaseApp;
-  if (getApps().length === 0) {
-    app = initializeApp(firebaseConfig);
-  } else {
-    app = getApp();
-  }
-
+  const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
   const auth = getAuth(app);
   const firestore = getFirestore(app);
 

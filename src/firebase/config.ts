@@ -4,8 +4,9 @@ export const firebaseConfig = {
   authDomain: "al-huffaazh.firebaseapp.com",
   databaseURL: "https://al-huffaazh-default-rtdb.firebaseio.com",
   projectId: "al-huffaazh",
-  storageBucket: "al-huffaazh.appspot.com",
+  storageBucket: "al-huffaazh.firebasestorage.app",
   messagingSenderId: "815792019917",
   appId: "1:815792019917:web:da52259f1e94dd78378c84",
   measurementId: "G-22XT0NZKLM"
 };
+
