@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Branch": {
@@ -40,6 +41,11 @@
           "description": "Email address of the user.",
           "format": "email"
         },
+        "photoURL": {
+          "type": "string",
+          "description": "URL of the user's profile photo.",
+          "format": "uri"
+        },
         "role": {
           "type": "string",
           "description": "Role of the user (teacher, parent, branch_admin, super_admin).",
@@ -62,9 +68,22 @@
       "type": "object",
       "description": "Represents a student in the school system.",
       "properties": {
+        "id": {
+          "type": "string",
+          "description": "The unique identifier for the student."
+        },
         "branchId": {
           "type": "string",
           "description": "Reference to Branch."
+        },
+        "parentUserId": {
+          "type": "string",
+          "description": "Reference to User (Parent)."
+        },
+        "parentEmail": {
+          "type": "string",
+          "description": "Denormalized email of the parent for display.",
+          "format": "email"
         },
         "fullName": {
           "type": "string",
@@ -74,6 +93,15 @@
           "type": "string",
           "description": "Date of birth of the student.",
           "format": "date"
+        },
+        "gender": {
+          "type": "string",
+          "description": "Gender of the student.",
+          "enum": ["male", "female"]
+        },
+        "address": {
+            "type": "string",
+            "description": "Home address of the student."
         },
         "class": {
           "type": "string",
@@ -108,15 +136,20 @@
         }
       },
       "required": [
+        "id",
         "branchId",
         "fullName",
         "dob",
+        "gender",
+        "address",
         "class",
         "admissionNo",
         "photoUrl",
         "qrToken",
         "createdByUserId",
-        "createdAt"
+        "createdAt",
+        "parentUserId",
+        "parentEmail"
       ]
     },
     "Payment": {
@@ -125,56 +158,131 @@
       "type": "object",
       "description": "Represents a payment record.",
       "properties": {
-        "studentId": {
-          "type": "string",
-          "description": "Reference to Student."
-        },
-        "parentUserId": {
-          "type": "string",
-          "description": "Reference to User (Parent)."
-        },
-        "branchId": {
-          "type": "string",
-          "description": "Denormalized branchId for querying."
-        },
-        "amount": {
-          "type": "number",
-          "description": "Amount paid."
-        },
-        "receiptUrl": {
-          "type": "string",
-          "description": "URL of the fee receipt image stored in ImageKit.",
-          "format": "uri"
-        },
-        "status": {
-          "type": "string",
-          "description": "Status of the payment.",
-          "enum": ["pending", "confirmed", "rejected"]
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp of when the payment record was created.",
-          "format": "date-time"
-        },
-        "confirmedBy": {
-          "type": "string",
-          "description": "Reference to User (Admin) who confirmed the payment."
-        },
-        "confirmedAt": {
-          "type": "string",
-          "description": "Timestamp of when the payment was confirmed.",
-          "format": "date-time"
-        }
+        "studentId": { "type": "string", "description": "Reference to Student." },
+        "studentName": { "type": "string", "description": "Denormalized student name." },
+        "parentUserId": { "type": "string", "description": "Reference to User (Parent)." },
+        "branchId": { "type": "string", "description": "Denormalized branchId for querying." },
+        "amount": { "type": "number", "description": "Amount paid." },
+        "paymentReason": { "type": "string", "enum": ["school_fees", "excursion", "other"], "description": "Reason for the payment." },
+        "otherReason": { "type": "string", "description": "Details if reason is 'other'." },
+        "receiptUrl": { "type": "string", "description": "URL of the fee receipt image stored in ImageKit.", "format": "uri" },
+        "status": { "type": "string", "description": "Status of the payment.", "enum": ["pending", "confirmed", "rejected"] },
+        "createdAt": { "type": "string", "description": "Timestamp of when the payment record was created.", "format": "date-time" },
+        "confirmedBy": { "type": "string", "description": "Reference to User (Admin) who confirmed the payment." },
+        "confirmedAt": { "type": "string", "description": "Timestamp of when the payment was confirmed.", "format": "date-time" },
+        "rejectionReason": { "type": "string", "description": "Reason for payment rejection." }
       },
       "required": [
         "studentId",
+        "studentName",
         "parentUserId",
         "branchId",
         "amount",
+        "paymentReason",
         "receiptUrl",
         "status",
         "createdAt"
       ]
+    },
+    "ParentCredential": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ParentCredential",
+      "type": "object",
+      "description": "Temporarily stores parent login credentials upon creation.",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "Parent's email address."
+        },
+        "password": {
+          "type": "string",
+          "description": "Parent's temporary password."
+        },
+        "studentId": {
+            "type": "string",
+            "description": "The ID of the student associated with this parent."
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when this credential record should be automatically deleted."
+        }
+      },
+      "required": ["email", "password", "studentId", "expiresAt"]
+    },
+    "Attendance": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Attendance",
+      "type": "object",
+      "description": "Represents a student's attendance record for a specific day.",
+      "properties": {
+        "studentId": { "type": "string", "description": "Reference to the Student." },
+        "studentName": { "type": "string", "description": "Denormalized name of the student." },
+        "admissionNo": { "type": "string", "description": "Denormalized admission number of the student." },
+        "branchId": { "type": "string", "description": "Denormalized branchId for querying." },
+        "date": { "type": "string", "format": "date", "description": "The date of the attendance record in YYYY-MM-DD format." },
+        "time": { "type": "string", "format": "time", "description": "The time the attendance was marked." },
+        "status": { "type": "string", "enum": ["present", "absent", "late"], "description": "The attendance status." },
+        "markedBy": { "type": "string", "description": "Reference to the User (teacher) who marked the attendance." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Server timestamp of the record."}
+      },
+      "required": ["studentId", "studentName", "admissionNo", "branchId", "date", "time", "status", "markedBy", "timestamp"]
+    },
+    "Subject": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Subject",
+      "type": "object",
+      "description": "Represents a subject taught in the school.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the subject." },
+        "name": { "type": "string", "description": "Name of the subject (e.g., Mathematics, English, Chemistry)." },
+        "category": { "type": "string", "enum": ["core", "islamic", "general"], "description": "Category of the subject." }
+      },
+      "required": ["id", "name", "category"]
+    },
+    "Term": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Term",
+      "type": "object",
+      "description": "Represents a school term (e.g., First Term 2024/2025).",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the term." },
+        "name": { "type": "string", "description": "Name of the term." }
+      },
+      "required": ["id", "name"]
+    },
+    "Result": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Result",
+      "type": "object",
+      "description": "Represents a student's result for a specific subject in a term.",
+      "properties": {
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string", "description": "Denormalized student name for display." },
+        "termId": { "type": "string" },
+        "termName": { "type": "string", "description": "Denormalized term name for display." },
+        "subjectId": { "type": "string" },
+        "subjectName": { "type": "string", "description": "Denormalized subject name for display." },
+        "branchId": { "type": "string" },
+        "marks": { "type": "number", "minimum": 0, "maximum": 100 },
+        "recordedBy": { "type": "string", "description": "Reference to the User (teacher) who recorded the result." },
+        "recordedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentId", "termId", "subjectId", "branchId", "marks", "recordedBy", "recordedAt", "studentName", "termName", "subjectName"]
+    },
+    "Notification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Notification",
+      "type": "object",
+      "description": "Represents a notification for a user.",
+      "properties": {
+        "userId": { "type": "string", "description": "The ID of the user to notify." },
+        "message": { "type": "string", "description": "The notification message." },
+        "link": { "type": "string", "description": "A URL link related to the notification." },
+        "read": { "type": "boolean", "description": "Whether the notification has been read." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the notification was created."}
+      },
+      "required": ["userId", "message", "link", "read", "createdAt"]
     }
   },
   "auth": {
@@ -219,7 +327,53 @@
           },
           "description": "Stores payment information with denormalized studentId, parentUserId, and branchId for efficient and secure querying."
         }
+      },
+      {
+        "path": "/parentCredentials/{userId}",
+        "definition": {
+          "schema": {
+            "$ref": "#/entities/ParentCredential"
+          },
+          "description": "Stores temporary parent credentials. Documents have a TTL and are automatically deleted."
+        }
+      },
+      {
+        "path": "/attendance/{attendanceId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/Attendance" },
+          "description": "Stores daily attendance records for all students. The document ID is a composite of studentId and date (YYYY-MM-DD)."
+        }
+      },
+      {
+        "path": "/subjects/{subjectId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/Subject" },
+          "description": "Stores all available subjects."
+        }
+      },
+      {
+        "path": "/terms/{termId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/Term" },
+          "description": "Stores all school terms."
+        }
+      },
+      {
+        "path": "/results/{resultId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/Result" },
+          "description": "Stores student results for each subject and term. The ID is a composite of studentId, termId, and subjectId."
+        }
+      },
+       {
+        "path": "/notifications/{notificationId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/Notification" },
+          "description": "Stores notifications for users."
+        }
       }
     ]
   }
 }
+
+    
