@@ -83,11 +83,10 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const firestore = useFirestore();
   const [studentCount, setStudentCount] = useState(0);
-  const [pendingPayments, setPendingPayments] = useState(0);
   const [loadingStats, setLoadingStats] = useState(true);
 
   const studentsQuery = useMemoFirebase(() => {
-    if (!user || !firestore || !user.uid) return null;
+    if (!user || !user.uid) return null;
     if (user.role === 'super_admin') {
       return collection(firestore, 'students');
     }
@@ -97,32 +96,15 @@ export default function DashboardPage() {
     return null;
   }, [user?.uid, user?.role, user?.branchId, firestore]);
 
-  const paymentsQuery = useMemoFirebase(() => {
-    if (!user || !firestore || !user.uid) return null;
-    if (user.role === 'parent' || user.role === 'teacher') return null;
-
-    let q = query(collection(firestore, 'payments'), where('status', '==', 'pending'));
-    if (user.role === 'branch_admin' && user.branchId) {
-        q = query(q, where('branchId', '==', user.branchId));
-    }
-    
-    return q;
-  }, [user?.uid, user?.role, user?.branchId, firestore]);
 
   const { data: students, isLoading: studentsLoading } = useCollection(studentsQuery);
-  const { data: payments, isLoading: paymentsLoading } = useCollection(paymentsQuery);
 
   useEffect(() => {
       if(!studentsLoading) {
         setStudentCount(students?.length || 0);
-      }
-      if(!paymentsLoading) {
-        setPendingPayments(payments?.length || 0);
-      }
-      if(!studentsLoading && !paymentsLoading) {
         setLoadingStats(false);
       }
-  }, [students, payments, studentsLoading, paymentsLoading])
+  }, [students, studentsLoading])
   
   const availableActions = user?.role ? quickActions.filter(action => action.roles.includes(user.role as UserRole)) : [];
 
@@ -158,18 +140,6 @@ export default function DashboardPage() {
             </CardContent>
             </Card>
         )}
-        {(user?.role === 'super_admin' || user?.role === 'branch_admin') && (
-            <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pending Payments</CardTitle>
-                <CreditCard className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-                 {loadingStats ? <div className="text-2xl font-bold">...</div> : <div className="text-2xl font-bold">{pendingPayments}</div>}
-                <p className="text-xs text-muted-foreground">Awaiting confirmation</p>
-            </CardContent>
-            </Card>
-        )}
       </div>
 
        {user.role === 'parent' ? <ParentDashboard user={user} /> : (
@@ -202,3 +172,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
