@@ -8,24 +8,28 @@ import * as z from 'zod';
 import { IKContext, IKUpload } from 'imagekitio-react';
 import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, addDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Loader2, UploadCloud, Info, History } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
-import { format } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
+import type { Student } from '../students/student-table';
+import { Combobox } from '@/components/ui/combobox';
+import { cn } from '@/lib/utils';
 
 const transactionSchema = z.object({
-  studentName: z.string().min(1, 'Please enter the name of the child.'),
+  studentId: z.string().min(1, 'Please select which child this payment is for.'),
   amount: z.coerce.number().min(1, 'Amount must be greater than zero.'),
-  reason: z.string().min(1, 'Please provide a reason.'),
+  reason: z.string().min(1, 'Please select a reason.'),
+  otherReason: z.string().optional(),
   receiptUrl: z.string().url('A receipt image is required.'),
 });
 
@@ -41,24 +45,56 @@ const bankDetails = {
     accountName: "Al-Huffaazh Academy",
 };
 
+interface Transaction {
+    id: string;
+    studentId: string;
+    studentName: string;
+    amount: number;
+    reason: string;
+    receiptUrl: string;
+    status: 'pending' | 'confirmed' | 'rejected';
+    createdAt: { seconds: number; nanoseconds: number };
+    rejectionReason?: string;
+}
+
 export default function TransactionsPage() {
     const { user } = useAuth();
+    const firestore = useFirestore();
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [receiptUrl, setReceiptUrl] = useState('');
     const ikUploadRef = useRef<any>(null);
-    const [mockTransactions, setMockTransactions] = useState<z.infer<typeof transactionSchema>[]>([]);
 
     const form = useForm<z.infer<typeof transactionSchema>>({
         resolver: zodResolver(transactionSchema),
         defaultValues: {
-            studentName: '',
+            studentId: '',
             amount: 0,
             reason: '',
+            otherReason: '',
             receiptUrl: '',
         },
     });
+    
+    // Fetch children for the parent
+    const childrenQuery = useMemoFirebase(() => {
+        if (!firestore || !user?.uid) return null;
+        return query(collection(firestore, 'students'), where('parentUserId', '==', user.uid));
+    }, [firestore, user?.uid]);
+    const { data: children, isLoading: childrenLoading } = useCollection<Student>(childrenQuery);
+    const studentOptions = children?.map(c => ({ value: c.id, label: c.fullName })) || [];
+
+    // Fetch transactions for the parent
+    const transactionsQuery = useMemoFirebase(() => {
+        if (!firestore || !user?.uid) return null;
+        return query(
+            collection(firestore, 'transactions'), 
+            where('parentUserId', '==', user.uid),
+            orderBy('createdAt', 'desc')
+        );
+    }, [firestore, user?.uid]);
+    const { data: transactions, isLoading: transactionsLoading } = useCollection<Transaction>(transactionsQuery);
 
     const onUploadSuccess = (ikResponse: any) => {
         setReceiptUrl(ikResponse.url);
@@ -73,19 +109,37 @@ export default function TransactionsPage() {
     };
 
     const onSubmit = async (values: z.infer<typeof transactionSchema>) => {
+        if (!user || !firestore) return;
+        
+        const selectedStudent = children?.find(c => c.id === values.studentId);
+        if (!selectedStudent) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not find selected student.' });
+            return;
+        }
+        
         setIsSubmitting(true);
-        
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        try {
+            await addDoc(collection(firestore, 'transactions'), {
+                studentId: values.studentId,
+                studentName: selectedStudent.fullName,
+                parentUserId: user.uid,
+                branchId: selectedStudent.branchId,
+                amount: values.amount,
+                reason: values.reason === 'other' ? values.otherReason : values.reason,
+                receiptUrl: values.receiptUrl,
+                status: 'pending',
+                createdAt: serverTimestamp(),
+            });
 
-        // Add to mock local state
-        setMockTransactions(prev => [values, ...prev]);
-
-        toast({ title: 'Transaction Submitted (Mock)', description: 'This is a mock submission. No data was saved.' });
-        form.reset();
-        setReceiptUrl('');
-        
-        setIsSubmitting(false);
+            toast({ title: 'Transaction Submitted', description: 'Your payment is now pending review from an administrator.' });
+            form.reset();
+            setReceiptUrl('');
+        } catch (error: any) {
+            console.error(error);
+            toast({ variant: 'destructive', title: 'Submission Failed', description: error.message });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
     
     return (
@@ -112,15 +166,26 @@ export default function TransactionsPage() {
                                         </AlertDescription>
                                     </Alert>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <FormField name="studentName" control={form.control} render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Child's Name</FormLabel>
-                                                <FormControl>
-                                                    <Input placeholder="Enter student's full name" {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )} />
+                                        <FormField
+                                            control={form.control}
+                                            name="studentId"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Child's Name</FormLabel>
+                                                    <FormControl>
+                                                        <Combobox
+                                                            options={studentOptions}
+                                                            onSelect={field.onChange}
+                                                            value={field.value}
+                                                            placeholder="Select child..."
+                                                            searchText='Search for child...'
+                                                            disabled={childrenLoading}
+                                                        />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
                                         <FormField name="amount" control={form.control} render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Amount Paid (₦)</FormLabel>
@@ -135,7 +200,7 @@ export default function TransactionsPage() {
                                         <FormItem>
                                             <FormLabel>Reason for Transaction</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="e.g., School Fees, Textbooks" {...field} />
+                                               <Input placeholder="e.g., School Fees, Textbooks" {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -196,15 +261,20 @@ export default function TransactionsPage() {
                         <CardHeader>
                              <div className="flex items-center gap-2">
                                 <History className="h-6 w-6" />
-                                <CardTitle>Mock Transaction History</CardTitle>
+                                <CardTitle>Transaction History</CardTitle>
                             </div>
-                            <CardDescription>A temporary list of your submitted transactions.</CardDescription>
+                            <CardDescription>A list of your submitted transactions.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {mockTransactions.length > 0 ? (
+                            {transactionsLoading ? (
                                 <div className="space-y-4">
-                                {mockTransactions.map((transaction, index) => (
-                                    <div key={index} className="p-4 rounded-lg border bg-secondary/30">
+                                    <Skeleton className="h-20 w-full" />
+                                    <Skeleton className="h-20 w-full" />
+                                </div>
+                            ) : transactions && transactions.length > 0 ? (
+                                <div className="space-y-4">
+                                {transactions.map((transaction) => (
+                                    <div key={transaction.id} className="p-4 rounded-lg border bg-secondary/30">
                                         <div className="flex justify-between items-start">
                                             <div>
                                                 <p className="font-bold text-lg">₦{transaction.amount.toLocaleString()}</p>
@@ -213,10 +283,18 @@ export default function TransactionsPage() {
                                                     {transaction.reason}
                                                 </p>
                                             </div>
-                                             <Badge variant="secondary">Pending</Badge>
+                                             <Badge variant={transaction.status === 'pending' ? 'secondary' : transaction.status === 'confirmed' ? 'default' : 'destructive'}
+                                                className={cn({
+                                                    'bg-yellow-100 text-yellow-800': transaction.status === 'pending',
+                                                    'bg-green-100 text-green-800': transaction.status === 'confirmed',
+                                                })}
+                                             >
+                                                {transaction.status}
+                                            </Badge>
                                         </div>
+                                         {transaction.rejectionReason && <p className="text-xs text-destructive mt-1">Reason: {transaction.rejectionReason}</p>}
                                         <div className="text-xs text-muted-foreground mt-2">
-                                            <span>Submitted on {format(new Date(), 'MMM d, yyyy')}</span>
+                                            <span>Submitted {formatDistanceToNow(new Date(transaction.createdAt.seconds * 1000), { addSuffix: true })}</span>
                                             <a href={transaction.receiptUrl} target="_blank" rel="noopener noreferrer" className="ml-2 text-accent underline">View Receipt</a>
                                         </div>
                                     </div>
@@ -233,3 +311,4 @@ export default function TransactionsPage() {
     );
 }
 
+    
