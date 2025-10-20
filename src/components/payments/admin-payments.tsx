@@ -46,6 +46,7 @@ export default function AdminPayments() {
       return query(
         collection(firestore, 'payments'), 
         where('status', '==', 'pending'),
+        orderBy('createdAt', 'desc'),
         limit(50)
       );
     }
@@ -244,3 +245,5 @@ export default function AdminPayments() {
     </Card>
   );
 }
+
+    
