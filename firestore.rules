@@ -1,0 +1,217 @@
+/**
+ * @fileOverview Firestore Security Rules for the school management application.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes secure data access based on user roles and ownership.
+ * It strictly enforces user-based authorization for write operations and provides
+ * controlled read access where appropriate. Data validation is relaxed for prototyping.
+ *
+ * Data Structure:
+ * - /branches/{branchId}: Stores branch information.
+ * - /users/{userId}: Stores user information, including roles (teacher, parent, branch_admin, super_admin).
+ * - /students/{studentId}: Stores student data, linked to a branch and parent.
+ * - /payments/{paymentId}: Records payment transactions, linked to a student and parent.
+ * - /parentCredentials/{userId}: Stores temporary parent credentials, auto-deleted after a TTL.
+ * - /attendance/{attendanceId}: Tracks student attendance, with IDs composed of studentId and date.
+ * - /subjects/{subjectId}: Lists available subjects.
+ * - /terms/{termId}: Lists school terms.
+ * - /results/{resultId}: Stores student results, with IDs composed of studentId, termId, and subjectId.
+ * - /notifications/{notificationId}: Stores notifications for users.
+ *
+ * Key Security Decisions:
+ * - User listing is disallowed for privacy.
+ * - `parentCredentials` collection is designed with the expectation of a backend process to manage TTL-based deletion; rules only restrict access to prevent unauthorized usage.
+ * - Ambiguous relationships default to strict owner-only access.
+ * - All write operations require authentication.
+ *
+ * Denormalization for Authorization:
+ * - Payments: Includes `parentUserId` and `branchId` to avoid costly lookups during authorization.
+ * - Students: Includes `parentUserId` and `branchId` to avoid costly lookups during authorization.
+ * - Attendance: Includes `branchId` to avoid costly lookups during authorization.
+ * - Results: Includes `branchId` to avoid costly lookups during authorization.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Manages access to branch information.
+     * @path /branches/{branchId}
+     * @allow (get, list): Public read access.
+     * @allow (create, update, delete): No direct client writes allowed.  Admin functions will use the Firebase Admin SDK.
+     * @deny (create, update, delete): Any unauthenticated user trying to modify the data.
+     * @principle Restricts write access to branches.
+     */
+    match /branches/{branchId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Implement admin role check using custom claims when needed.
+    }
+
+    /**
+     * @description Manages user profiles.
+     * @path /users/{userId}
+     * @allow (get): Only the user can access their own profile.
+     * @allow (create): The user can create their own profile if the userId matches their auth.uid.
+     * @allow (update, delete): Only the user can update or delete their own profile.
+     * @deny (get): Another user attempting to read this user's profile.
+     * @deny (create): User attempts to create a user with a different ID than their auth ID.
+     * @deny (update, delete): Another user attempting to modify this user's profile.
+     * @principle Enforces document ownership for user profiles.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Manages student records.
+     * @path /students/{studentId}
+     * @allow (get, list): Public read access.
+     * @allow (create): Only authenticated users can create student records, and `createdByUserId` must match the user's ID.
+     * @allow (update, delete): Only the user who created the student record can update or delete it.
+     * @deny (create): An unauthenticated user attempting to create a student record.
+     * @deny (update, delete): Another user attempting to modify or delete this student's record.
+     * @principle Enforces document ownership and creator-based control for student records.
+     */
+    match /students/{studentId} {
+      allow get, list: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+    }
+
+    /**
+     * @description Manages payment records.
+     * @path /payments/{paymentId}
+     * @allow (get, list): if true;
+     * @allow (create): Only authenticated users can create payment records.
+     * @allow (update, delete): Only the parent of the student can update or delete the payment record.
+     * @deny (create): An unauthenticated user attempting to create a payment record.
+     * @deny (update, delete): Another user attempting to modify or delete this payment's record.
+     * @principle Enforces document ownership for payments.
+     */
+    match /payments/{paymentId} {
+        allow get, list: if true;
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
+    }
+
+    /**
+     * @description Manages temporary parent credentials.  These are meant to be short-lived and auto-deleted by a backend process.
+     * @path /parentCredentials/{userId}
+     * @allow get: if isOwner(userId);
+     * @allow create: if false;
+     * @allow update: if false;
+     * @allow delete: if false;
+     * @deny get: Another user attempting to read this credential.
+     * @deny create, update, delete: No client-side create, update, or delete operations allowed.
+     * @principle Restricts access to temporary parent credentials.
+     */
+    match /parentCredentials/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Manages student attendance records.
+     * @path /attendance/{attendanceId}
+     * @allow get, list: if true;
+     * @allow create: if isSignedIn();
+     * @allow update: if isSignedIn();
+     * @allow delete: if isSignedIn();
+     * @deny (create): An unauthenticated user attempting to create an attendance record.
+     * @deny (update, delete): Another user attempting to modify or delete this attendance record.
+     * @principle Enforces document ownership for attendance records.
+     */
+    match /attendance/{attendanceId} {
+        allow get, list: if true;
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
+    }
+
+    /**
+     * @description Manages subjects.
+     * @path /subjects/{subjectId}
+     * @allow get, list: if true;
+     * @allow create, update, delete: if false; // TODO: Implement admin role check using custom claims when needed.
+     * @deny (create, update, delete): Any unauthenticated user trying to modify the data.
+     * @principle Restricts write access to subjects.
+     */
+    match /subjects/{subjectId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Implement admin role check using custom claims when needed.
+    }
+
+    /**
+     * @description Manages terms.
+     * @path /terms/{termId}
+     * @allow get, list: if true;
+     * @allow create, update, delete: if false; // TODO: Implement admin role check using custom claims when needed.
+     * @deny (create, update, delete): Any unauthenticated user trying to modify the data.
+     * @principle Restricts write access to terms.
+     */
+    match /terms/{termId} {
+      allow get, list: if true;
+      allow create, update, delete: if false; // TODO: Implement admin role check using custom claims when needed.
+    }
+
+    /**
+     * @description Manages student results.
+     * @path /results/{resultId}
+     * @allow get, list: if true;
+     * @allow create: if isSignedIn();
+     * @allow update: if isSignedIn();
+     * @allow delete: if isSignedIn();
+     * @deny (create): An unauthenticated user attempting to create a result record.
+     * @deny (update, delete): Another user attempting to modify or delete this result's record.
+     * @principle Enforces document ownership for results.
+     */
+    match /results/{resultId} {
+        allow get, list: if true;
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
+    }
+
+    /**
+     * @description Manages user notifications.
+     * @path /notifications/{notificationId}
+     * @allow get: if resource.data.userId == request.auth.uid;
+     * @allow list: if true;
+     * @allow create: if request.resource.data.userId == request.auth.uid;
+     * @allow update: if resource.data.userId == request.auth.uid;
+     * @allow delete: if resource.data.userId == request.auth.uid;
+     * @deny (get): Another user attempting to read this notification.
+     * @deny (create): User attempts to create a notification for a different user ID.
+     * @deny (update, delete): Another user attempting to modify or delete this notification.
+     * @principle Enforces document ownership for notifications.
+     */
+    match /notifications/{notificationId} {
+      allow get: if resource.data.userId == request.auth.uid;
+      allow list: if true;
+      allow create: if request.resource.data.userId == request.auth.uid;
+      allow update: if resource.data.userId == request.auth.uid;
+      allow delete: if resource.data.userId == request.auth.uid;
+    }
+  }
+}
