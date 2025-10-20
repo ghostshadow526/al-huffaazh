@@ -65,25 +65,6 @@ export default function AdminPayments() {
   const handlePaymentStatusChange = async (payment: PaymentRecord, newStatus: 'confirmed' | 'rejected', reason?: string) => {
     if (!firestore || !user) return;
     
-    if (newStatus === 'confirmed' && user.role !== 'super_admin') {
-      toast({
-        variant: 'destructive',
-        title: 'Permission Denied',
-        description: 'Only Super Admins can confirm payments.',
-      });
-      return;
-    }
-    
-    if (newStatus === 'rejected' && (user.role !== 'super_admin' && user.role !== 'branch_admin')) {
-        toast({
-            variant: 'destructive',
-            title: 'Permission Denied',
-            description: 'You do not have permission to reject payments.',
-        });
-        return;
-    }
-
-
     const paymentRef = doc(firestore, 'payments', payment.id);
     const notificationRef = doc(collection(firestore, 'notifications'));
     const batch = writeBatch(firestore);
