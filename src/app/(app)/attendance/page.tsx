@@ -10,10 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
 import { doc, serverTimestamp, setDoc, collection, query, where } from 'firebase/firestore';
-import { useFirestore, useMemoFirebase } from '@/firebase';
+import { useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import type { Student } from '../students/student-table';
 import QRAttendanceScanner from '@/components/QRAttendanceScanner';
-import { useCollection } from '@/firebase/firestore/use-collection';
 import { Combobox } from '@/components/ui/combobox';
 
 function ManualAttendanceForm({ onStudentSelect, students, isLoading }: { onStudentSelect: (studentId: string) => void, students: Student[], isLoading: boolean }) {
@@ -222,3 +221,5 @@ export default function AttendancePage() {
     </div>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -7,8 +8,7 @@ import * as z from 'zod';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { useCollection } from '@/firebase/firestore/use-collection';
-import { useMemoFirebase, useAuth as useFirebaseAuth, useFirestore } from '@/firebase/provider';
+import { useCollection, useMemoFirebase, useAuth as useFirebaseAuth, useFirestore } from '@/firebase';
 import { useAuth } from '@/components/auth-provider';
 import { useRouter } from 'next/navigation';
 import { seedBranchesIfNeeded } from "@/lib/seedBranches";
@@ -153,7 +153,7 @@ export default function InviteUserPage() {
   }, [branchesRaw]);
 
   useEffect(() => {
-    seedBranchesIfNeeded();
+    // seedBranchesIfNeeded();
   }, []);
   
 
@@ -341,3 +341,5 @@ export default function InviteUserPage() {
     </Card>
   );
 }
+
+    

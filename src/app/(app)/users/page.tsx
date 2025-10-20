@@ -5,8 +5,7 @@ import React from 'react';
 import Link from 'next/link';
 import { collection, query, where } from 'firebase/firestore';
 import { useAuth, User } from '@/components/auth-provider';
-import { useCollection } from '@/firebase/firestore/use-collection';
-import { useMemoFirebase, useFirestore } from '@/firebase/provider';
+import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 
 import { PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -59,3 +58,5 @@ export default function UsersPage() {
     </div>
   );
 }
+
+    

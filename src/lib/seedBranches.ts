@@ -1,8 +1,8 @@
-import { getFirebaseDb } from "@/firebase"; 
+import { useFirestore } from "@/firebase"; 
 import { collection, getDocs, doc, writeBatch } from "firebase/firestore";
 
 export async function seedBranchesIfNeeded() {
-  const db = getFirebaseDb();
+  const db = useFirestore();
   const branchesCollectionRef = collection(db, 'branches');
 
   const BRANCH_NAMES = [

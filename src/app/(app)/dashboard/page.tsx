@@ -3,9 +3,8 @@
 import { useAuth, UserRole } from "@/components/auth-provider";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Users, CreditCard, UserPlus, ClipboardList, CalendarCheck, GraduationCap, User as UserIcon } from "lucide-react";
-import { useMemoFirebase, useFirestore } from "@/firebase/provider";
+import { useMemoFirebase, useFirestore, useCollection } from "@/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
-import { useCollection } from "@/firebase/firestore/use-collection";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -202,3 +201,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

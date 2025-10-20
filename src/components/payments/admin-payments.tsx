@@ -3,9 +3,8 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
-import { useFirestore, useMemoFirebase } from '@/firebase';
+import { useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, query, where, orderBy, doc, updateDoc, writeBatch, serverTimestamp, limit } from 'firebase/firestore';
-import { useCollection } from '@/firebase/firestore/use-collection';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -43,9 +42,11 @@ export default function AdminPayments() {
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
 
-    // Super admin query is disabled to prevent crashing.
     if (user.role === 'super_admin') {
-      return null;
+        // This was causing permission errors. Disabling for now.
+        // A super_admin should probably view aggregated data or filtered lists,
+        // not a potentially huge list of all payments.
+        return null;
     }
     
     // Branch admin can only see payments for their branch
@@ -243,3 +244,5 @@ export default function AdminPayments() {
     </Card>
   );
 }
+
+    

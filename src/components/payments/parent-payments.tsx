@@ -7,9 +7,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { IKContext, IKUpload } from 'imagekitio-react';
 import { useAuth } from '@/components/auth-provider';
-import { useFirestore, useMemoFirebase } from '@/firebase';
+import { useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, query, where, doc, writeBatch, serverTimestamp, getDocs, orderBy } from 'firebase/firestore';
-import { useCollection } from '@/firebase/firestore/use-collection';
 import { useToast } from '@/hooks/use-toast';
 import { Student } from '@/app/(app)/students/student-table';
 

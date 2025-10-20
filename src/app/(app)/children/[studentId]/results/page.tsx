@@ -2,8 +2,7 @@
 'use client';
 
 import { useParams, notFound } from 'next/navigation';
-import { useFirestore, useMemoFirebase } from '@/firebase';
-import { useCollection } from '@/firebase/firestore/use-collection';
+import { useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, query, where, doc, getDoc, orderBy } from 'firebase/firestore';
 import type { Student } from '@/app/(app)/students/student-table';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -153,3 +152,5 @@ export default function ChildResultsPage() {
         </div>
     );
 }
+
+    

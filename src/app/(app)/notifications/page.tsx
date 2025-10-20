@@ -3,10 +3,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { collection, query, where, orderBy, writeBatch } from 'firebase/firestore';
+import { collection, query, where, orderBy, writeBatch, doc } from 'firebase/firestore';
 import { useAuth } from '@/components/auth-provider';
-import { useCollection } from '@/firebase/firestore/use-collection';
-import { useMemoFirebase, useFirestore } from '@/firebase/provider';
+import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -52,10 +51,8 @@ export default function NotificationsPage() {
 
     const batch = writeBatch(firestore);
     unreadNotifs.forEach(notif => {
-      const notifRef = collection(firestore, 'notifications', notif.id);
-      // It seems there's a typo in your original code. Let's fix it.
-      // batch.update(notifRef, { read: true }); should be:
-      batch.update(doc(firestore, 'notifications', notif.id), { read: true });
+      const notifRef = doc(firestore, 'notifications', notif.id);
+      batch.update(notifRef, { read: true });
     });
 
     try {

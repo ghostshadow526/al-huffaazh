@@ -5,8 +5,7 @@ import React from 'react';
 import Link from 'next/link';
 import { collection, query, where } from 'firebase/firestore';
 import { useAuth } from '@/components/auth-provider';
-import { useCollection } from '@/firebase/firestore/use-collection';
-import { useMemoFirebase, useFirestore } from '@/firebase/provider';
+import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 import type { Student } from '../students/student-table';
 
 import { PlusCircle } from 'lucide-react';
@@ -66,3 +65,5 @@ export default function ManageStudentsPage() {
     </div>
   );
 }
+
+    
