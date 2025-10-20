@@ -43,14 +43,9 @@ export default function AdminPayments() {
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
 
+    // Disable for super_admin to prevent crash
     if (user.role === 'super_admin') {
-      // Super admin can see all pending payments across all branches
-      return query(
-        collection(firestore, 'payments'),
-        where('status', '==', 'pending'),
-        orderBy('createdAt', 'desc'),
-        limit(50)
-      );
+      return null;
     }
     
     // Branch admin can only see payments for their branch
