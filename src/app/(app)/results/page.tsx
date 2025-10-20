@@ -129,7 +129,7 @@ export default function ResultsPage() {
   }, [firestore]);
 
   const studentsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
+    if (!user || !firestore || !user.uid) return null;
     if (user.role === 'super_admin') {
       return collection(firestore, 'students');
     }
@@ -137,7 +137,7 @@ export default function ResultsPage() {
       return query(collection(firestore, 'students'), where('branchId', '==', user.branchId));
     }
     return null;
-  }, [user, firestore]);
+  }, [user?.uid, user?.role, user?.branchId, firestore]);
 
   const termsQuery = useMemoFirebase(() => dataVersion >= 0 && firestore ? collection(firestore, 'terms') : null, [firestore, dataVersion]);
   const subjectsQuery = useMemoFirebase(() => dataVersion >= 0 && firestore ? collection(firestore, 'subjects') : null, [firestore, dataVersion]);
@@ -299,5 +299,3 @@ export default function ResultsPage() {
     </div>
   );
 }
-
-    

@@ -44,7 +44,7 @@ export default function AttendancePage() {
 
   // Fetch students for manual attendance
   const studentsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
+    if (!user || !firestore || !user.uid) return null;
     if (user.role === 'super_admin') {
         return collection(firestore, 'students');
     }
@@ -52,7 +52,7 @@ export default function AttendancePage() {
         return query(collection(firestore, 'students'), where('branchId', '==', user.branchId));
     }
     return null;
-  }, [user, firestore]);
+  }, [user?.uid, user?.role, user?.branchId, firestore]);
 
   const { data: students, isLoading: studentsLoading } = useCollection<Student>(studentsQuery);
 
@@ -221,5 +221,3 @@ export default function AttendancePage() {
     </div>
   );
 }
-
-    

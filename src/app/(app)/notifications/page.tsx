@@ -33,13 +33,13 @@ export default function NotificationsPage() {
   const { toast } = useToast();
 
   const notificationsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
+    if (!user || !firestore || !user.uid) return null;
     return query(
       collection(firestore, 'notifications'),
       where('userId', '==', user.uid),
       orderBy('createdAt', 'desc')
     );
-  }, [user, firestore]);
+  }, [user?.uid, firestore]);
 
   const { data: notifications, isLoading } = useCollection<Notification>(notificationsQuery);
 
@@ -128,5 +128,3 @@ export default function NotificationsPage() {
     </div>
   );
 }
-
-    

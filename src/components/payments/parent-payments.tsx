@@ -78,16 +78,16 @@ export default function ParentPayments() {
     const ikUploadRef = useRef<any>(null);
 
     const childrenQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
+        if (!firestore || !user?.uid) return null;
         return query(collection(firestore, 'students'), where('parentUserId', '==', user.uid));
-    }, [firestore, user]);
+    }, [firestore, user?.uid]);
 
     const { data: children, isLoading: childrenLoading } = useCollection<Student>(childrenQuery);
     
     const paymentsQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
+        if (!firestore || !user?.uid) return null;
         return query(collection(firestore, 'payments'), where('parentUserId', '==', user.uid), orderBy('createdAt', 'desc'));
-    }, [firestore, user]);
+    }, [firestore, user?.uid]);
 
     const { data: payments, isLoading: paymentsLoading } = useCollection<PaymentRecord>(paymentsQuery);
 
@@ -359,5 +359,3 @@ export default function ParentPayments() {
         </div>
     );
 }
-
-    

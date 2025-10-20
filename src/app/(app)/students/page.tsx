@@ -18,7 +18,7 @@ export default function StudentsPage() {
   const firestore = useFirestore();
 
   const studentsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
+    if (!user || !firestore || !user.uid) return null;
     // Super admin can see all students
     if (user.role === 'super_admin') {
       return collection(firestore, 'students');
@@ -28,7 +28,7 @@ export default function StudentsPage() {
       return query(collection(firestore, 'students'), where('branchId', '==', user.branchId));
     }
     return null;
-  }, [user, firestore]);
+  }, [user?.uid, user?.role, user?.branchId, firestore]);
 
   const { data: students, isLoading } = useCollection<Student>(studentsQuery);
   const canAddStudent = user?.role === 'teacher' || user?.role === 'branch_admin' || user?.role === 'super_admin';
@@ -65,5 +65,3 @@ export default function StudentsPage() {
     </div>
   );
 }
-
-    

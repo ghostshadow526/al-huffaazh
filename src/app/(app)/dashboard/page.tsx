@@ -99,11 +99,12 @@ export default function DashboardPage() {
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!user || !firestore || !user.uid) return null;
+    if (user.role === 'parent' || user.role === 'teacher') return null;
+
     let q = query(collection(firestore, 'payments'), where('status', '==', 'pending'));
     if (user.role === 'branch_admin' && user.branchId) {
         q = query(q, where('branchId', '==', user.branchId));
     }
-    if (user.role === 'parent' || user.role === 'teacher') return null;
     
     return q;
   }, [user?.uid, user?.role, user?.branchId, firestore]);
