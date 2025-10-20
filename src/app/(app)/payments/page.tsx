@@ -3,7 +3,29 @@
 
 import { useAuth } from '@/components/auth-provider';
 import ParentPayments from '@/components/payments/parent-payments';
-import AdminPayments from '@/components/payments/admin-payments';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
+
+function AdminPaymentsDisabled() {
+    return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Manage Payments</CardTitle>
+            <CardDescription>Review and manage all submitted fee payments.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert variant="destructive">
+                <ShieldAlert className="h-4 w-4" />
+              <AlertTitle>Feature Temporarily Disabled</AlertTitle>
+              <AlertDescription>
+                The payment management feature is currently unavailable. We are working to resolve the issue.
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+      );
+}
 
 export default function PaymentsPage() {
   const { user } = useAuth();
@@ -15,14 +37,13 @@ export default function PaymentsPage() {
   }
   
   if (user.role === 'super_admin' || user.role === 'branch_admin') {
-    return <AdminPayments />;
+    return <AdminPaymentsDisabled />;
   }
 
   return (
-    <div className="text-center">
-      <p>This page is not available for your role.</p>
+    <div className="text-center p-8">
+      <h3 className="text-lg font-semibold">Access Denied</h3>
+      <p className="text-muted-foreground">This page is not available for your role.</p>
     </div>
   );
 }
-
-    
