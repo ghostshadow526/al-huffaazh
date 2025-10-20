@@ -58,7 +58,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       setLoading(false);
     };
 
-    if (!isUserLoading) {
+    if (!isUserLoading && db) {
       handleUser();
     }
   }, [firebaseUser, isUserLoading, db]);

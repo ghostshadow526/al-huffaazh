@@ -2,7 +2,6 @@
 export const firebaseConfig = {
   apiKey: "AIzaSyB_l9UXQ5Kdy63Kg_0QcGu2U1TyXmOHqo0",
   authDomain: "al-huffaazh.firebaseapp.com",
-  databaseURL: "https://al-huffaazh-default-rtdb.firebaseio.com",
   projectId: "al-huffaazh",
   storageBucket: "al-huffaazh.appspot.com",
   messagingSenderId: "815792019917",

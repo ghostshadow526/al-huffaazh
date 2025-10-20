@@ -151,5 +151,3 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return <DashboardSidebar user={user}>{children}</DashboardSidebar>;
 }
-
-    

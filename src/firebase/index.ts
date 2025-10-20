@@ -12,18 +12,10 @@ let db: Firestore;
 
 // This function ensures firebase is initialized, and returns the app instance
 function getFirebaseApp() {
-    if (!app) {
-        if (!getApps().length) {
-            try {
-                // Attempt to initialize via Firebase App Hosting environment variables
-                app = initializeApp();
-            } catch (e) {
-                // Fallback for local development
-                app = initializeApp(firebaseConfig);
-            }
-        } else {
-            app = getApp();
-        }
+    if (getApps().length === 0) {
+        app = initializeApp(firebaseConfig);
+    } else {
+        app = getApp();
     }
     return app;
 }
@@ -74,3 +66,4 @@ export * from './non-blocking-updates';
 export * from './non-blocking-login';
 export * from './errors';
 export * from './error-emitter';
+export * from './auth/use-user';
