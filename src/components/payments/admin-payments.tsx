@@ -44,9 +44,10 @@ export default function AdminPayments() {
     if (!firestore || !user) return null;
 
     if (user.role === 'super_admin') {
-      // Super admin can see all payments across all branches, limited to 50 most recent to be safe.
+      // Super admin can see all pending payments across all branches
       return query(
         collection(firestore, 'payments'),
+        where('status', '==', 'pending'),
         orderBy('createdAt', 'desc'),
         limit(50)
       );
@@ -247,5 +248,3 @@ export default function AdminPayments() {
     </Card>
   );
 }
-
-    
