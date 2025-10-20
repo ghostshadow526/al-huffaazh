@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { collection, query, where, orderBy, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '@/components/auth-provider';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
@@ -14,9 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { format, formatDistanceToNow } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { CheckCircle, XCircle, Clock, Search } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { CheckCircle, XCircle, Clock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Transaction {
@@ -124,7 +123,7 @@ export default function AdminTransactionsPage() {
             userId: selectedTransaction.parentUserId,
             message: `Your payment for ${selectedTransaction.studentName} was rejected. Reason: ${rejectionReason}`,
             link: `/transactions`,
-read: false,
+            read: false,
             createdAt: serverTimestamp(),
         });
 
