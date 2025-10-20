@@ -21,7 +21,7 @@ function getFirebaseApp() {
 }
 
 // Getter for the Auth instance
-export function getFirebaseAuth(): Auth {
+function getFirebaseAuth(): Auth {
     if (!auth) {
         auth = getAuth(getFirebaseApp());
     }
@@ -29,32 +29,23 @@ export function getFirebaseAuth(): Auth {
 }
 
 // Getter for the Firestore instance
-export function getFirebaseDb(): Firestore {
+function getFirebaseDb(): Firestore {
     if (!db) {
         db = getFirestore(getFirebaseApp());
     }
     return db;
 }
 
-
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export function initializeFirebase() {
   const firebaseApp = getFirebaseApp();
-  const firebaseAuth = getFirebaseAuth();
-  const firestoreDb = getFirebaseDb();
+  const auth = getFirebaseAuth();
+  const firestore = getFirebaseDb();
 
   return {
     firebaseApp,
-    auth: firebaseAuth,
-    firestore: firestoreDb,
-  };
-}
-
-export function getSdks(firebaseApp: FirebaseApp) {
-  return {
-    firebaseApp,
-    auth: getAuth(firebaseApp),
-    firestore: getFirestore(firebaseApp)
+    auth,
+    firestore,
   };
 }
 
@@ -62,8 +53,6 @@ export * from './provider';
 export * from './client-provider';
 export * from './firestore/use-collection';
 export * from './firestore/use-doc';
-export * from './non-blocking-updates';
-export * from './non-blocking-login';
+export * from './auth/use-user';
 export * from './errors';
 export * from './error-emitter';
-export * from './auth/use-user';

@@ -5,7 +5,7 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Logo } from './logo';
-import { useUser as useFirebaseUser, useFirestore } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 
 export type UserRole = 'super_admin' | 'branch_admin' | 'teacher' | 'parent';
 
@@ -25,7 +25,7 @@ const AuthContext = createContext<AuthContextType>({ user: null, loading: true }
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const { user: firebaseUser, isUserLoading } = useFirebaseUser();
+  const { user: firebaseUser, isUserLoading } = useUser();
   const db = useFirestore();
 
   useEffect(() => {
@@ -58,8 +58,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       setLoading(false);
     };
 
-    if (!isUserLoading && db) {
-      handleUser();
+    if (!isUserLoading) {
+        handleUser();
     }
   }, [firebaseUser, isUserLoading, db]);
 
