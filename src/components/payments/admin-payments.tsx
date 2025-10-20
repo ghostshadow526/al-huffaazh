@@ -41,12 +41,14 @@ export default function AdminPayments() {
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    
-    // For super_admin, we return null to prevent the broad, permission-denied query.
-    // This stops the app from crashing. A more sophisticated implementation
-    // with pagination or search would be needed for super_admin to view all payments.
+
     if (user.role === 'super_admin') {
-      return null;
+      // Super admin can see all pending payments across all branches
+      return query(
+        collection(firestore, 'payments'),
+        where('status', '==', 'pending'),
+        orderBy('createdAt', 'desc')
+      );
     }
     
     // Branch admin can only see payments for their branch
