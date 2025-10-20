@@ -43,7 +43,7 @@ export default function AdminPayments() {
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
 
-    // Disable for super_admin to prevent crash
+    // Super admin query is disabled to prevent crashing.
     if (user.role === 'super_admin') {
       return null;
     }
