@@ -158,52 +158,27 @@
       "type": "object",
       "description": "Represents a payment record.",
       "properties": {
-        "studentId": {
-          "type": "string",
-          "description": "Reference to Student."
-        },
-        "parentUserId": {
-          "type": "string",
-          "description": "Reference to User (Parent)."
-        },
-        "branchId": {
-          "type": "string",
-          "description": "Denormalized branchId for querying."
-        },
-        "amount": {
-          "type": "number",
-          "description": "Amount paid."
-        },
-        "receiptUrl": {
-          "type": "string",
-          "description": "URL of the fee receipt image stored in ImageKit.",
-          "format": "uri"
-        },
-        "status": {
-          "type": "string",
-          "description": "Status of the payment.",
-          "enum": ["pending", "confirmed", "rejected"]
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp of when the payment record was created.",
-          "format": "date-time"
-        },
-        "confirmedBy": {
-          "type": "string",
-          "description": "Reference to User (Admin) who confirmed the payment."
-        },
-        "confirmedAt": {
-          "type": "string",
-          "description": "Timestamp of when the payment was confirmed.",
-          "format": "date-time"
-        }
+        "studentId": { "type": "string", "description": "Reference to Student." },
+        "studentName": { "type": "string", "description": "Denormalized student name." },
+        "parentUserId": { "type": "string", "description": "Reference to User (Parent)." },
+        "branchId": { "type": "string", "description": "Denormalized branchId for querying." },
+        "amount": { "type": "number", "description": "Amount paid." },
+        "paymentReason": { "type": "string", "enum": ["school_fees", "excursion", "other"], "description": "Reason for the payment." },
+        "otherReason": { "type": "string", "description": "Details if reason is 'other'." },
+        "receiptUrl": { "type": "string", "description": "URL of the fee receipt image stored in ImageKit.", "format": "uri" },
+        "status": { "type": "string", "description": "Status of the payment.", "enum": ["pending", "confirmed", "rejected"] },
+        "createdAt": { "type": "string", "description": "Timestamp of when the payment record was created.", "format": "date-time" },
+        "confirmedBy": { "type": "string", "description": "Reference to User (Admin) who confirmed the payment." },
+        "confirmedAt": { "type": "string", "description": "Timestamp of when the payment was confirmed.", "format": "date-time" },
+        "rejectionReason": { "type": "string", "description": "Reason for payment rejection." }
       },
       "required": [
         "studentId",
+        "studentName",
         "parentUserId",
         "branchId",
         "amount",
+        "paymentReason",
         "receiptUrl",
         "status",
         "createdAt"
@@ -294,6 +269,20 @@
         "recordedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["studentId", "termId", "subjectId", "branchId", "marks", "recordedBy", "recordedAt", "studentName", "termName", "subjectName"]
+    },
+    "Notification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Notification",
+      "type": "object",
+      "description": "Represents a notification for a user.",
+      "properties": {
+        "userId": { "type": "string", "description": "The ID of the user to notify." },
+        "message": { "type": "string", "description": "The notification message." },
+        "link": { "type": "string", "description": "A URL link related to the notification." },
+        "read": { "type": "boolean", "description": "Whether the notification has been read." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the notification was created."}
+      },
+      "required": ["userId", "message", "link", "read", "createdAt"]
     }
   },
   "auth": {
@@ -374,6 +363,13 @@
         "definition": {
           "schema": { "$ref": "#/entities/Result" },
           "description": "Stores student results for each subject and term. The ID is a composite of studentId, termId, and subjectId."
+        }
+      },
+       {
+        "path": "/notifications/{notificationId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/Notification" },
+          "description": "Stores notifications for users."
         }
       }
     ]

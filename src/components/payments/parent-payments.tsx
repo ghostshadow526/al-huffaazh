@@ -23,9 +23,7 @@ import { Textarea } from '../ui/textarea';
 import Image from 'next/image';
 import { Badge } from '../ui/badge';
 import { format } from 'date-fns';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Skeleton } from '../ui/skeleton';
-import { cn } from '@/lib/utils';
 
 const paymentSchema = z.object({
   studentId: z.string().min(1, 'Please select which child this payment is for.'),
@@ -169,7 +167,7 @@ export default function ParentPayments() {
         }
     };
     
-    const getStatusVariant = (status: string) => {
+    const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
       switch (status) {
         case 'confirmed': return 'default';
         case 'pending': return 'secondary';
@@ -330,7 +328,7 @@ export default function ParentPayments() {
                                     <div key={payment.id} className="p-4 rounded-lg border bg-secondary/30">
                                         <div className="flex justify-between items-start">
                                             <div>
-                                                <p className="font-bold text-lg">${payment.amount.toLocaleString()}</p>
+                                                <p className="font-bold text-lg">₦{payment.amount.toLocaleString()}</p>
                                                 <p className="text-sm font-medium">{payment.studentName}</p>
                                                 <p className="text-xs text-muted-foreground capitalize">
                                                     {payment.paymentReason.replace('_', ' ')}
