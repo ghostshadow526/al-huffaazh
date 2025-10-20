@@ -6,44 +6,21 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
-
-// This function ensures firebase is initialized, and returns the app instance
-function getFirebaseApp() {
-    if (getApps().length === 0) {
-        app = initializeApp(firebaseConfig);
-    } else {
-        app = getApp();
-    }
-    return app;
-}
-
-// Getter for the Auth instance
-function getFirebaseAuth(): Auth {
-    if (!auth) {
-        auth = getAuth(getFirebaseApp());
-    }
-    return auth;
-}
-
-// Getter for the Firestore instance
-function getFirebaseDb(): Firestore {
-    if (!db) {
-        db = getFirestore(getFirebaseApp());
-    }
-    return db;
-}
-
-// IMPORTANT: DO NOT MODIFY THIS FUNCTION
+// IMPORTANT: This is the core Firebase initialization logic.
+// It ensures that Firebase is initialized only once.
 export function initializeFirebase() {
-  const firebaseApp = getFirebaseApp();
-  const auth = getFirebaseAuth();
-  const firestore = getFirebaseDb();
+  let app: FirebaseApp;
+  if (getApps().length === 0) {
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApp();
+  }
+
+  const auth = getAuth(app);
+  const firestore = getFirestore(app);
 
   return {
-    firebaseApp,
+    firebaseApp: app,
     auth,
     firestore,
   };
