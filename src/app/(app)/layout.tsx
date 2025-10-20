@@ -49,7 +49,6 @@ const navItems: { href: string; label: string; icon: LucideIcon; roles: UserRole
     { href: "/manage-students", label: "Manage Students", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/attendance", label: "Attendance", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/results", label: "Results", icon: GraduationCap, roles: ['teacher', 'branch_admin', 'super_admin'] },
-    { href: "/transactions", label: "My Transactions", icon: ArrowLeftRight, roles: ['parent'] },
     { href: "/admin/transactions", label: "All Transactions", icon: CreditCard, roles: ['super_admin', 'branch_admin'] },
     { href: "/users", label: "Manage Users", icon: Users, roles: ['super_admin', 'branch_admin'] },
 ];
