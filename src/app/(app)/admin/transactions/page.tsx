@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
 import { CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { errorEmitter, FirestorePermissionError } from '@/firebase';
 
 interface Receipt {
   id: string;
@@ -47,8 +48,6 @@ export default function AdminTransactionsPage() {
   const receiptsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     
-    // Only admins can query for receipts.
-    // Super admins see all, branch admins see their branch's receipts.
     if (user.role === 'super_admin') {
       return collection(firestore, 'receipts');
     }
@@ -56,7 +55,6 @@ export default function AdminTransactionsPage() {
       return query(collection(firestore, 'receipts'), where('branchId', '==', user.branchId));
     }
     
-    // For any other role, return null to prevent the query and avoid permission errors.
     return null;
   }, [user, firestore]);
   
@@ -69,7 +67,7 @@ export default function AdminTransactionsPage() {
   }, [allReceipts, filter]);
 
 
-  const handleApprove = async (receipt: Receipt) => {
+  const handleApprove = (receipt: Receipt) => {
     if (!firestore || !user) return;
     setIsProcessing(true);
 
@@ -78,10 +76,11 @@ export default function AdminTransactionsPage() {
     
     const batch = writeBatch(firestore);
 
-    batch.update(receiptDocRef, {
+    const approvalUpdate = {
         status: 'approved',
         verifiedBy: user.uid,
-    });
+    };
+    batch.update(receiptDocRef, approvalUpdate);
 
     batch.set(notificationDocRef, {
         userId: receipt.parentUserId,
@@ -91,14 +90,18 @@ export default function AdminTransactionsPage() {
         createdAt: new Date(),
     });
 
-    try {
-        await batch.commit();
+    batch.commit().then(() => {
         toast({ title: 'Receipt Approved', description: 'The parent has been notified.'});
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error', description: error.message });
-    } finally {
+    }).catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: receiptDocRef.path,
+          operation: 'update',
+          requestResourceData: approvalUpdate,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }).finally(() => {
         setIsProcessing(false);
-    }
+    });
   };
 
   const openRejectDialog = (receipt: Receipt) => {
@@ -106,7 +109,7 @@ export default function AdminTransactionsPage() {
     setIsRejectDialogOpen(true);
   };
 
-  const handleReject = async () => {
+  const handleReject = () => {
     if (!firestore || !selectedReceipt || !rejectionReason.trim()) {
         toast({ variant: 'destructive', title: 'Error', description: 'Please provide a reason for rejection.' });
         return;
@@ -119,11 +122,12 @@ export default function AdminTransactionsPage() {
 
     const batch = writeBatch(firestore);
 
-    batch.update(receiptDocRef, {
+    const rejectionUpdate = {
         status: 'rejected',
         rejectionReason: rejectionReason,
         verifiedBy: user.uid,
-    });
+    };
+    batch.update(receiptDocRef, rejectionUpdate);
     
     batch.set(notificationDocRef, {
         userId: selectedReceipt.parentUserId,
@@ -133,17 +137,21 @@ export default function AdminTransactionsPage() {
         createdAt: new Date(),
     });
 
-    try {
-        await batch.commit();
+    batch.commit().then(() => {
         toast({ title: 'Receipt Rejected', description: 'The parent has been notified.' });
         setIsRejectDialogOpen(false);
         setRejectionReason('');
         setSelectedReceipt(null);
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error', description: error.message });
-    } finally {
+    }).catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: receiptDocRef.path,
+          operation: 'update',
+          requestResourceData: rejectionUpdate,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }).finally(() => {
         setIsProcessing(false);
-    }
+    });
   };
 
   const getStatusBadge = (status: Receipt['status']) => {
