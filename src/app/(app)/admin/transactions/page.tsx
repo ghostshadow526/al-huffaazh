@@ -47,12 +47,15 @@ export default function AdminTransactionsPage() {
   const receiptsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     
+    // This is the critical guard: only create a query if the user is an admin.
     if (user.role === 'super_admin') {
       return collection(firestore, 'receipts');
     }
     if (user.role === 'branch_admin' && user.branchId) {
       return query(collection(firestore, 'receipts'), where('branchId', '==', user.branchId));
     }
+    
+    // For any other role (like 'parent' or 'teacher'), return null to prevent the query.
     return null;
   }, [user, firestore]);
   
@@ -151,6 +154,21 @@ export default function AdminTransactionsPage() {
         return <Badge variant="destructive"><XCircle className="mr-1 h-3 w-3" />Rejected</Badge>;
     }
   };
+
+  // If the user is not an admin, show an access denied message instead of the table.
+  if (user && user.role !== 'super_admin' && user.role !== 'branch_admin') {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Access Denied</CardTitle>
+                <CardDescription>You do not have permission to view this page.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <p>This page is only accessible to administrators.</p>
+            </CardContent>
+        </Card>
+    )
+  }
 
   return (
     <Card>
@@ -256,5 +274,3 @@ export default function AdminTransactionsPage() {
     </Card>
   );
 }
-
-    
