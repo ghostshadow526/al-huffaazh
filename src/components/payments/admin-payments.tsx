@@ -8,7 +8,6 @@ import { collection, query, where, orderBy, doc, updateDoc, writeBatch, serverTi
 import { useCollection } from '@/firebase/firestore/use-collection';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import Image from 'next/image';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -20,6 +19,7 @@ import { MoreHorizontal, CheckCircle, XCircle } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+
 
 interface PaymentRecord {
     id: string;
@@ -43,7 +43,7 @@ export default function AdminPayments() {
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     
-    // Super admin sees all payments across all branches.
+    // Super admin can see all payments, ordered by creation date.
     if (user.role === 'super_admin') {
       return query(collection(firestore, 'payments'), orderBy('createdAt', 'desc'));
     }
@@ -57,7 +57,6 @@ export default function AdminPayments() {
       );
     }
     
-    // For any other role, return null to prevent unauthorized queries
     return null;
   }, [firestore, user]);
 
@@ -66,15 +65,24 @@ export default function AdminPayments() {
   const handlePaymentStatusChange = async (payment: PaymentRecord, newStatus: 'confirmed' | 'rejected', reason?: string) => {
     if (!firestore || !user) return;
     
-    // Only super_admin can confirm or reject
-    if (user.role !== 'super_admin') {
+    if (newStatus === 'confirmed' && user.role !== 'super_admin') {
       toast({
         variant: 'destructive',
         title: 'Permission Denied',
-        description: 'Only Super Admins can update payment status.',
+        description: 'Only Super Admins can confirm payments.',
       });
       return;
     }
+    
+    if (newStatus === 'rejected' && (user.role !== 'super_admin' && user.role !== 'branch_admin')) {
+        toast({
+            variant: 'destructive',
+            title: 'Permission Denied',
+            description: 'You do not have permission to reject payments.',
+        });
+        return;
+    }
+
 
     const paymentRef = doc(firestore, 'payments', payment.id);
     const notificationRef = doc(collection(firestore, 'notifications'));
@@ -129,6 +137,10 @@ export default function AdminPayments() {
     }
   };
 
+  const canConfirmPayment = user?.role === 'super_admin';
+  const canRejectPayment = user?.role === 'super_admin' || user?.role === 'branch_admin';
+
+
   return (
     <Card>
       <CardHeader>
@@ -182,8 +194,7 @@ export default function AdminPayments() {
                               <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                                 <a href={payment.receiptUrl} target="_blank" rel="noopener noreferrer" className="w-full">View Receipt</a>
                               </DropdownMenuItem>
-                              {user?.role === 'super_admin' && (
-                                <>
+                              {canConfirmPayment && (
                                   <DropdownMenuItem
                                     onClick={() => handlePaymentStatusChange(payment, 'confirmed')}
                                     disabled={payment.status !== 'pending'}
@@ -191,6 +202,8 @@ export default function AdminPayments() {
                                       <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
                                       Confirm
                                   </DropdownMenuItem>
+                              )}
+                              {canRejectPayment && (
                                   <AlertDialogTrigger asChild>
                                       <DropdownMenuItem
                                         onSelect={(e) => e.preventDefault()}
@@ -201,7 +214,6 @@ export default function AdminPayments() {
                                           Reject
                                     </DropdownMenuItem>
                                   </AlertDialogTrigger>
-                                </>
                               )}
                           </DropdownMenuContent>
                       </DropdownMenu>
@@ -251,5 +263,3 @@ export default function AdminPayments() {
     </Card>
   );
 }
-
-    
