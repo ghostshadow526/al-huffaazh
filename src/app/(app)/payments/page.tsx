@@ -19,7 +19,7 @@ function AdminPaymentsDisabled() {
                 <ShieldAlert className="h-4 w-4" />
               <AlertTitle>Feature Temporarily Disabled</AlertTitle>
               <AlertDescription>
-                The payment management feature is currently unavailable. We are working to resolve the issue.
+                The payment management feature is currently unavailable. We are working to resolve this issue.
               </AlertDescription>
             </Alert>
           </CardContent>
@@ -32,14 +32,17 @@ export default function PaymentsPage() {
 
   if (!user) return null;
 
+  // Only render the ParentPayments component if the user is a parent.
   if (user.role === 'parent') {
     return <ParentPayments />;
   }
   
+  // For admin roles, render a disabled message to prevent queries.
   if (user.role === 'super_admin' || user.role === 'branch_admin') {
     return <AdminPaymentsDisabled />;
   }
 
+  // For any other role (like 'teacher'), deny access.
   return (
     <div className="text-center p-8">
       <h3 className="text-lg font-semibold">Access Denied</h3>
