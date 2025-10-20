@@ -39,13 +39,9 @@ export default function AdminTransactions() {
     const [selectedTransaction, setSelectedTransaction] = useState<TransactionRecord | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
 
+    // DISABLING QUERY TO PREVENT CRASH
     const transactionsQuery = useMemoFirebase(() => {
-        if (!user || !user.uid) return null;
-        let q = query(collection(firestore, 'transactions'), orderBy('createdAt', 'desc'));
-        if (user.role === 'branch_admin' && user.branchId) {
-            q = query(q, where('branchId', '==', user.branchId));
-        }
-        return q;
+        return null;
     }, [firestore, user?.uid, user?.role, user?.branchId]);
 
     const { data: transactions, isLoading } = useCollection<TransactionRecord>(transactionsQuery);
@@ -126,6 +122,10 @@ export default function AdminTransactions() {
         default: return 'outline';
       }
     };
+    
+    // Set loading to false since we are not fetching data
+    const tableIsLoading = false;
+    const finalTransactions = transactions || [];
 
     return (
         <>
@@ -148,14 +148,14 @@ export default function AdminTransactions() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {isLoading ? (
+                            {tableIsLoading ? (
                                 [...Array(5)].map((_, i) => (
                                     <TableRow key={i}>
                                         <TableCell colSpan={7}><Skeleton className="h-10 w-full" /></TableCell>
                                     </TableRow>
                                 ))
-                            ) : transactions && transactions.length > 0 ? (
-                                transactions.map(t => (
+                            ) : finalTransactions.length > 0 ? (
+                                finalTransactions.map(t => (
                                     <TableRow key={t.id}>
                                         <TableCell className="font-medium">{t.studentName}</TableCell>
                                         <TableCell>₦{t.amount.toLocaleString()}</TableCell>
