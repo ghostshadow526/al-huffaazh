@@ -43,7 +43,7 @@ export default function AdminPayments() {
   const paymentsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     
-    // Super admin can see all payments, ordered by creation date.
+    // Super admin can see all pending payments across all branches.
     if (user.role === 'super_admin') {
       return query(collection(firestore, 'payments'), orderBy('createdAt', 'desc'));
     }
@@ -118,8 +118,7 @@ export default function AdminPayments() {
     }
   };
 
-  const canConfirmPayment = user?.role === 'super_admin';
-  const canRejectPayment = user?.role === 'super_admin' || user?.role === 'branch_admin';
+  const canConfirmOrReject = user?.role === 'super_admin' || user?.role === 'branch_admin';
 
 
   return (
@@ -175,7 +174,8 @@ export default function AdminPayments() {
                               <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                                 <a href={payment.receiptUrl} target="_blank" rel="noopener noreferrer" className="w-full">View Receipt</a>
                               </DropdownMenuItem>
-                              {canConfirmPayment && (
+                              {canConfirmOrReject && (
+                                  <>
                                   <DropdownMenuItem
                                     onClick={() => handlePaymentStatusChange(payment, 'confirmed')}
                                     disabled={payment.status !== 'pending'}
@@ -183,8 +183,6 @@ export default function AdminPayments() {
                                       <CheckCircle className="mr-2 h-4 w-4 text-green-500" />
                                       Confirm
                                   </DropdownMenuItem>
-                              )}
-                              {canRejectPayment && (
                                   <AlertDialogTrigger asChild>
                                       <DropdownMenuItem
                                         onSelect={(e) => e.preventDefault()}
@@ -195,6 +193,7 @@ export default function AdminPayments() {
                                           Reject
                                     </DropdownMenuItem>
                                   </AlertDialogTrigger>
+                                  </>
                               )}
                           </DropdownMenuContent>
                       </DropdownMenu>
