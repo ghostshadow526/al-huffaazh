@@ -4,7 +4,7 @@
 import { PublicLayout } from "@/components/public/PublicLayout";
 import { BranchCard } from "@/components/public/BranchCard";
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, orderBy } from 'firebase/firestore';
+import { collection, orderBy, query } from 'firebase/firestore';
 import { Card, CardContent } from "@/components/ui/card";
 
 interface Branch {
