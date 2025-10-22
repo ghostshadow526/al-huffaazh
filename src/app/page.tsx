@@ -1,62 +1,111 @@
-"use client";
 
-import Link from 'next/link';
+'use client';
+
+import { HeroSection } from '@/components/public/HeroSection';
+import { PublicLayout } from '@/components/public/PublicLayout';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Logo } from '@/components/logo';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+import { BranchCard } from '@/components/public/BranchCard';
+import { GalleryGrid } from '@/components/public/GalleryGrid';
+import { ContactSection } from '@/components/public/ContactSection';
 import Image from 'next/image';
+import Link from 'next/link';
 
-export default function HomePage() {
+interface Branch {
+  id: string;
+  name: string;
+  address: string;
+  slug: string;
+}
+
+export default function MotherSitePage() {
+  const firestore = useFirestore();
+
+  const branchesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'branches');
+  }, [firestore]);
+
+  const { data: branches, isLoading: branchesLoading } = useCollection<Branch>(branchesQuery);
+
+  const galleryImages = [
+    { src: 'https://picsum.photos/seed/gal1/600/400', 'data-ai-hint': 'students learning' },
+    { src: 'https://picsum.photos/seed/gal2/600/400', 'data-ai-hint': 'quran reading' },
+    { src: 'https://picsum.photos/seed/gal3/600/400', 'data-ai-hint': 'school building' },
+    { src: 'https://picsum.photos/seed/gal4/600/400', 'data-ai-hint': 'graduation ceremony' },
+    { src: 'https://picsum.photos/seed/gal5/600/400', 'data-ai-hint': 'classroom activity' },
+    { src: 'https://picsum.photos/seed/gal6/600/400', 'data-ai-hint': 'teacher students' },
+  ];
+
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <Logo className="h-8 w-8 text-accent" />
-            <span className="text-xl font-headline text-foreground">Al-Huffaazh Academy</span>
-          </Link>
-          <nav className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" asChild>
-              <Link href="/login">Sign In</Link>
-            </Button>
-            <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
-              <Link href="/login">Dashboard</Link>
-            </Button>
-          </nav>
-        </div>
-      </header>
-      <main className="flex-1">
-        <section className="relative w-full py-20 md:py-32 lg:py-40">
-          <div className="container text-center">
-            <div className="absolute inset-0 -z-10">
-                <Image 
-                    src="https://picsum.photos/seed/1/1200/800" 
-                    alt="Quran"
-                    fill
-                    style={{ objectFit: 'cover' }}
-                    className="opacity-20"
-                    data-ai-hint="holy book"
-                />
-                <div className="absolute inset-0 bg-background/80"></div>
+    <PublicLayout>
+      <HeroSection />
+
+      <section id="about" className="py-16 md:py-24 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-4">
+              <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">About Al-Huffaazh Academy</h2>
+              <p className="text-lg text-gray-600 font-body">
+                Al-Huffaazh Academy is a leading institution dedicated to providing an exceptional blend of Islamic and Western education. Our core mission is to nurture the next generation of scholars and leaders who are not only proficient in modern sciences but are also deeply rooted in the teachings of the Holy Quran.
+              </p>
+              <p className="text-gray-600 font-body">
+                We believe in creating a disciplined, faith-based environment where students can thrive academically, morally, and spiritually. Our curriculum is designed to foster critical thinking, creativity, and a lifelong love for learning, all within a framework of Islamic values.
+              </p>
             </div>
-            <h1 className="text-4xl font-bold tracking-tighter text-foreground sm:text-5xl md:text-6xl lg:text-7xl font-headline">
-              Nurturing the Next Generation of Huffaazh
-            </h1>
-            <p className="mx-auto mt-6 max-w-[700px] text-lg text-muted-foreground md:text-xl">
-              Al-Huffaazh Academy is dedicated to providing quality Quranic education, helping students on their journey to memorize the Holy Quran.
-            </p>
-            <div className="mt-8 flex justify-center gap-4">
-              <Button size="lg" asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                <Link href="/login">Access Portal</Link>
-              </Button>
+            <div>
+              <Image 
+                src="https://picsum.photos/seed/about1/600/400"
+                alt="Students in a classroom"
+                width={600}
+                height={400}
+                className="rounded-2xl shadow-lg"
+                data-ai-hint="students classroom"
+              />
             </div>
           </div>
-        </section>
-      </main>
-      <footer className="border-t">
-        <div className="container flex flex-col items-center justify-between gap-4 py-6 md:flex-row">
-            <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} Al-Huffaazh Academy. All rights reserved.</p>
         </div>
-      </footer>
-    </div>
+      </section>
+
+      <section id="branches" className="py-16 md:py-24 bg-gray-50">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Our Branches</h2>
+            <p className="text-lg text-gray-600 mt-2 font-body">Find an Al-Huffaazh Academy near you.</p>
+          </div>
+          {branchesLoading ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {[...Array(3)].map((_, i) => <Card key={i} className="rounded-2xl shadow-md"><CardContent className="p-6 h-48 animate-pulse bg-gray-200 rounded-2xl"></CardContent></Card>)}
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {branches?.slice(0, 3).map(branch => (
+                <BranchCard key={branch.id} branch={branch} />
+              ))}
+            </div>
+          )}
+           <div className="text-center mt-12">
+                <Button asChild size="lg" className="rounded-xl bg-primary-deep hover:bg-primary-deep/90">
+                    <Link href="/branches">View All Branches</Link>
+                </Button>
+            </div>
+        </div>
+      </section>
+
+      <section id="gallery" className="py-16 md:py-24 bg-white">
+          <div className="container mx-auto px-4">
+              <div className="text-center mb-12">
+                  <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Gallery</h2>
+                  <p className="text-lg text-gray-600 mt-2 font-body">A glimpse into life at Al-Huffaazh Academy.</p>
+              </div>
+              <GalleryGrid images={galleryImages} />
+          </div>
+      </section>
+      
+      <ContactSection />
+      
+    </PublicLayout>
   );
 }
