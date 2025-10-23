@@ -283,6 +283,20 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the notification was created."}
       },
       "required": ["userId", "message", "link", "read", "createdAt"]
+    },
+    "GalleryImage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "GalleryImage",
+      "type": "object",
+      "description": "Represents an image in a branch's gallery.",
+      "properties": {
+        "branchId": { "type": "string", "description": "The ID of the branch this image belongs to." },
+        "imageUrl": { "type": "string", "format": "uri", "description": "The URL of the image stored in ImageKit." },
+        "caption": { "type": "string", "description": "An optional caption for the image." },
+        "uploadedAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the image was uploaded." },
+        "uploadedBy": { "type": "string", "description": "The ID of the user who uploaded the image." }
+      },
+      "required": ["branchId", "imageUrl", "uploadedAt", "uploadedBy"]
     }
   },
   "auth": {
@@ -371,9 +385,14 @@
           "schema": { "$ref": "#/entities/Notification" },
           "description": "Stores notifications for users."
         }
+      },
+      {
+        "path": "/gallery/{imageId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/GalleryImage" },
+          "description": "Stores images for public branch galleries."
+        }
       }
     ]
   }
 }
-
-    

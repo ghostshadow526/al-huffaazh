@@ -35,6 +35,7 @@ import {
   Bell,
   ArrowLeftRight,
   Search,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useAuth as useFirebaseAuth } from '@/firebase';
 
@@ -51,6 +52,7 @@ const navItems: { href: string; label: string; icon: LucideIcon; roles: UserRole
     { href: "/search-students", label: "Search Students", icon: Search, roles: ['super_admin', 'branch_admin'] },
     { href: "/attendance", label: "Attendance", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/results", label: "Results", icon: GraduationCap, roles: ['teacher', 'branch_admin', 'super_admin'] },
+    { href: "/gallery/upload", label: "Gallery", icon: ImageIcon, roles: ['super_admin', 'branch_admin'] },
     { href: "/admin/transactions", label: "All Transactions", icon: CreditCard, roles: ['super_admin', 'branch_admin'] },
     { href: "/users", label: "Manage Users", icon: Users, roles: ['super_admin', 'branch_admin'] },
 ];

@@ -3,8 +3,8 @@
 
 import { useParams, notFound } from "next/navigation";
 import { PublicLayout } from "@/components/public/PublicLayout";
-import { useCollection, useDoc, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, doc, query, where } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection, query, where } from "firebase/firestore";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { GalleryGrid } from "@/components/public/GalleryGrid";
@@ -22,6 +22,12 @@ interface Branch {
   email?: string;
 }
 
+interface GalleryImage {
+    id: string;
+    imageUrl: string;
+    caption?: string;
+}
+
 export default function BranchPage() {
     const params = useParams();
     const slug = params.slug as string;
@@ -35,14 +41,16 @@ export default function BranchPage() {
 
     const { data: branchData, isLoading: branchLoading } = useCollection<Branch>(branchQuery);
     const branch = branchData?.[0];
+    
+    // Fetch gallery images for this branch
+    const galleryQuery = useMemoFirebase(() => {
+        if (!firestore || !branch?.id) return null;
+        return query(collection(firestore, 'gallery'), where('branchId', '==', branch.id));
+    }, [firestore, branch?.id]);
 
-    // Dummy gallery images for now
-    const galleryImages = [
-        { src: `https://picsum.photos/seed/${slug}1/600/400`, 'data-ai-hint': 'students outside' },
-        { src: `https://picsum.photos/seed/${slug}2/600/400`, 'data-ai-hint': 'school event' },
-        { src: `https://picsum.photos/seed/${slug}3/600/400`, 'data-ai-hint': 'library books' },
-        { src: `https://picsum.photos/seed/${slug}4/600/400`, 'data-ai-hint': 'playground children' },
-    ];
+    const { data: galleryData, isLoading: galleryLoading } = useCollection<GalleryImage>(galleryQuery);
+
+    const galleryImages = galleryData?.map(img => ({ src: img.imageUrl, 'data-ai-hint': img.caption || 'school event' })) || [];
     
     if (branchLoading) {
         return (
@@ -110,7 +118,15 @@ export default function BranchPage() {
                     <div className="text-center mb-12">
                         <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Branch Gallery</h2>
                     </div>
-                    <GalleryGrid images={galleryImages} />
+                    {galleryLoading ? (
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                           {[...Array(3)].map((_, i) => <Skeleton key={i} className="rounded-2xl h-64 bg-gray-200" />)}
+                        </div>
+                    ) : galleryImages.length > 0 ? (
+                        <GalleryGrid images={galleryImages} />
+                    ) : (
+                        <p className="text-center text-gray-500">No gallery images have been uploaded for this branch yet.</p>
+                    )}
                 </div>
             </section>
 
