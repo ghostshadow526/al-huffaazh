@@ -20,29 +20,34 @@ export default function SearchStudentsPage() {
 
   const studentsQuery = useMemoFirebase(() => {
     if (!user || !firestore || !searchQuery) return null;
-
-    // Capitalize the first letter of each word in the search query for better matching.
-    const formattedQuery = searchQuery
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
-
-    const baseQuery = query(
-      collection(firestore, 'students'),
-      where('fullName', '>=', formattedQuery),
-      where('fullName', '<=', formattedQuery + '\uf8ff'),
-      limit(10)
-    );
-
-    if (user.role === 'branch_admin' && user.branchId) {
-      return query(baseQuery, where('branchId', '==', user.branchId));
-    }
     
+    const q = searchQuery.trim();
+    if (q === '') return null;
+
+    let baseQuery;
+
     if (user.role === 'super_admin') {
-      return baseQuery;
+      baseQuery = query(
+        collection(firestore, 'students'),
+        orderBy('fullName'),
+        where('fullName', '>=', q),
+        where('fullName', '<=', q + '\uf8ff'),
+        limit(10)
+      );
+    } else if (user.role === 'branch_admin' && user.branchId) {
+      baseQuery = query(
+        collection(firestore, 'students'),
+        where('branchId', '==', user.branchId),
+        orderBy('fullName'),
+        where('fullName', '>=', q),
+        where('fullName', '<=', q + '\uf8ff'),
+        limit(10)
+      );
+    } else {
+        return null;
     }
 
-    return null;
+    return baseQuery;
   }, [user, firestore, searchQuery]);
 
   const { data: students, isLoading } = useCollection<Student>(studentsQuery);
