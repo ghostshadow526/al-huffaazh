@@ -21,13 +21,16 @@ export default function SearchStudentsPage() {
   const studentsQuery = useMemoFirebase(() => {
     if (!user || !firestore || !searchQuery) return null;
 
-    // Capitalize search query for case-insensitive search on capitalized names
-    const capitalizedQuery = searchQuery.charAt(0).toUpperCase() + searchQuery.slice(1);
+    // Capitalize the first letter of each word in the search query for better matching.
+    const formattedQuery = searchQuery
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
 
     const baseQuery = query(
       collection(firestore, 'students'),
-      where('fullName', '>=', capitalizedQuery),
-      where('fullName', '<=', capitalizedQuery + '\uf8ff'),
+      where('fullName', '>=', formattedQuery),
+      where('fullName', '<=', formattedQuery + '\uf8ff'),
       limit(10)
     );
 
@@ -73,12 +76,15 @@ export default function SearchStudentsPage() {
         </CardHeader>
         <CardContent>
           <div className="max-w-xl">
-            <Input
-              placeholder="Search by full name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="text-lg"
-            />
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                placeholder="Search by full name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 text-base"
+              />
+            </div>
           </div>
           <div className="mt-6">
             {searchQuery && students && students.length === 0 && !isLoading && (
@@ -86,7 +92,7 @@ export default function SearchStudentsPage() {
                 <Search className="h-4 w-4" />
                 <AlertTitle>No Results</AlertTitle>
                 <AlertDescription>
-                  No students found matching your search query.
+                  No students found matching your search query. Try checking for typos.
                 </AlertDescription>
               </Alert>
             )}
