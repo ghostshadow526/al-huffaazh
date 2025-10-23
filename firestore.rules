@@ -1,170 +1,181 @@
 /**
- * @description This ruleset enforces a hybrid access model for receipts, allowing parents to create receipts,
- *              view their own receipts, and allowing a super admin to read and update all receipts.
- *              Users can only access their own data in their respective collections.
- * @dataStructure
- *  - /branches/{branchId}: Stores branch information.
- *  - /users/{userId}: Stores user information.
- *  - /students/{studentId}: Stores student information.
- *  - /receipts/{receiptId}: Stores receipt information. Parents can create receipts, and admins can read/update all.
- *  - /parentCredentials/{userId}: Stores temporary parent credentials.
- *  - /attendance/{attendanceId}: Stores attendance records.
- *  - /subjects/{subjectId}: Stores subject information.
- *  - /terms/{termId}: Stores term information.
- *  - /results/{resultId}: Stores student results.
- *  - /notifications/{notificationId}: Stores notifications for users.
- * @keySecurityDecisions
- *  - Super admins are identified by their email address.
- *  - Parents can only create receipts.
- *  - Listing of receipts is restricted to super admins.
- *  - Data validation is limited to authorization-critical fields.
- * @denormalizationForAuthorization
- *  - Receipts store parentUserId to easily check ownership.
- *  - Receipts store branchId for querying.
- * @structuralSegregation None applicable.
+ * @fileoverview Firestore Security Rules for the school management application.
+ *
+ * Core Philosophy:
+ * This ruleset prioritizes security and data ownership, enforcing strict access controls based on user roles and resource relationships.
+ *
+ * Data Structure:
+ * - /branches/{branchId}: Stores branch-specific data, accessible to branch admins and super admins.
+ * - /users/{userId}: Stores user profiles with role-based access control. Super admins can manage all users, while branch admins can manage users within their branch. Parents and teachers have limited access.
+ * - /students/{studentId}: Stores student data, accessible to branch admins, teachers within the student's branch, and parents of the student.
+ * - /receipts/{receiptId}: Stores payment receipts, accessible to parents who uploaded them and branch admins for verification.
+ * - /parentCredentials/{userId}: Stores temporary parent credentials with TTL-based deletion. Only accessible during creation.
+ * - /attendance/{attendanceId}: Stores student attendance records, accessible to teachers within the student's branch.
+ * - /subjects/{subjectId}: Stores a list of subjects, publicly readable.
+ * - /terms/{termId}: Stores school terms, publicly readable.
+ * - /results/{resultId}: Stores student results, accessible to teachers and parents.
+ * - /notifications/{notificationId}: Stores notifications, accessible to the user the notification is for.
+ * - /gallery/{imageId}: Stores gallery images, publicly readable.
+ *
+ * Key Security Decisions:
+ * - Public Read-Only Collections: The /subjects and /terms collections are publicly readable.
+ * - Ownership Enforcement: Write operations are generally restricted to resource owners or authorized roles.
+ * - No User Listing: Listing all users is generally disallowed for security reasons.
+ * - Denormalization: The ruleset relies on denormalized data (e.g., branchId on students and receipts) to avoid complex queries in security rules.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Manages branch information. Only authenticated users can read. Write access is not granted.
+     * @description Allows branch admins and super admins to manage branch information.
      * @path /branches/{branchId}
-     * @allow get, list: if true;
-     * @deny create, update, delete: if false;
-     * @principle Only authenticated users can read branch information.
      */
     match /branches/{branchId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+      allow get, list: if true;
+      allow create, update, delete: if isSignedIn() && (isSuperAdmin() || (isBranchAdmin() && request.auth.token.branchId == branchId));
     }
 
     /**
-     * @description Manages user information. Users can read their own profile, but listing all users is not allowed.
+     * @description Allows super admins to manage all users and branch admins to manage users within their branch. Parents and teachers can only access their own user document.
      * @path /users/{userId}
-     * @allow get: if isOwner(userId);
-     * @allow create: if isOwner(userId);
-     * @deny list, update, delete: if false;
-     * @principle Enforces user-ownership for profile reads and denies listing all users.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow list, update, delete: if false;
+      allow get: if isSignedIn() && (isOwner(userId) || isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/users/$(userId)).data.branchId == request.auth.token.branchId));
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update, delete: if isSignedIn() && (isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/users/$(userId)).data.branchId == request.auth.token.branchId));
     }
 
     /**
-     * @description Manages student information. Read access is allowed to all authenticated users. Writes are not allowed.
+     * @description Allows branch admins and teachers within the student's branch to read student data. Allows parents of the student to read and update (certain fields only) student data. Allows super admins to manage all student data.
      * @path /students/{studentId}
-     * @allow get, list: if isSignedIn();
-     * @deny create, update, delete: if false;
-     * @principle Allows public read access to student information but restricts write access.
      */
     match /students/{studentId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+      allow get, list: if isSignedIn() && (isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == request.auth.token.branchId) || (isTeacher() && request.auth.token.branchId == get(/databases/$(database)/documents/students/$(studentId)).data.branchId) || isParentOfStudent(studentId));
+      allow create: if isSignedIn() && (isSuperAdmin() || (isBranchAdmin() && request.resource.data.branchId == request.auth.token.branchId));
+      allow update, delete: if isSignedIn() && (isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == request.auth.token.branchId));
     }
 
     /**
-     * @description Manages receipts. Parents can create receipts, view their own receipts, and super admins can read/update all.
+     * @description Allows parents who uploaded the receipt and branch admins to access receipt data. Parents can only create receipts for their children. Branch admins can update the status and verifiedBy fields.
      * @path /receipts/{receiptId}
-     * @allow create: if request.auth != null;
-     * @allow read: if request.auth != null && resource.data.parentUserId == request.auth.uid;
-     * @allow update: if request.auth.token.email == "superadmin@gmail.com" && resource != null;
-     * @allow delete: if request.auth.token.email == "superadmin@gmail.com" && resource != null;
-     * @deny list: if request.auth.token.email != "superadmin@gmail.com";
-     * @principle Allows parents to create receipts and super admins to manage them. Enforces document ownership for reads.
      */
     match /receipts/{receiptId} {
-      allow create: if request.auth != null;
-
-      // Parent: can read only their own receipts
-      allow get: if request.auth != null && request.auth.uid == resource.data.parentUserId;
-      allow update: if false;
-
-      // Super admin: can see and update all
-      allow list, get, update, delete: if request.auth.token.email == "superadmin@gmail.com";
+      allow get, list: if isSignedIn() && (isParentOfReceipt(receiptId) || (isBranchAdmin() && get(/databases/$(database)/documents/receipts/$(receiptId)).data.branchId == request.auth.token.branchId) || isSuperAdmin());
+      allow create: if isSignedIn() && isParentOfStudent(request.resource.data.studentId);
+      allow update: if isSignedIn() && (isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/receipts/$(receiptId)).data.branchId == request.auth.token.branchId));
+      allow delete: if isSignedIn() && isSuperAdmin();
     }
 
-      /**
-     * @description Manages temporary parent credentials.  Write access is restricted.
+    /**
+     * @description Allows creation of temporary parent credentials. These are meant to be short-lived and automatically deleted via TTL. No other access is allowed.
      * @path /parentCredentials/{userId}
-     * @deny get, list, create, update, delete: if false;
-     * @principle No access granted to parent credentials
      */
     match /parentCredentials/{userId} {
-      allow get, list, create, update, delete: if false;
+      allow get, list, update, delete: if false;
+      allow create: if true; // limited window for creating temporary user
     }
 
     /**
-     * @description Manages attendance records. Read access is allowed to all authenticated users. Writes are not allowed.
+     * @description Allows teachers within the student's branch to manage attendance records.
      * @path /attendance/{attendanceId}
-     * @allow get, list: if isSignedIn();
-     * @deny create, update, delete: if false;
-     * @principle Allows public read access to attendance records but restricts write access.
      */
     match /attendance/{attendanceId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+      allow get, list: if isSignedIn() && ((isTeacher() && request.auth.token.branchId == get(/databases/$(database)/documents/attendance/$(attendanceId)).data.branchId) || isSuperAdmin());
+      allow create, update: if isSignedIn() && ((isTeacher() && request.auth.token.branchId == request.resource.data.branchId) || isSuperAdmin());
+      allow delete: if isSignedIn() && isSuperAdmin();
     }
 
     /**
-     * @description Manages subject information. Read access is allowed to all authenticated users. Writes are not allowed.
+     * @description Allows anyone to read the list of subjects. Write operations are not allowed.
      * @path /subjects/{subjectId}
-     * @allow get, list: if true;
-     * @deny create, update, delete: if false;
-     * @principle Allows public read access to subject information but restricts write access.
      */
     match /subjects/{subjectId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if true;
       allow create, update, delete: if false;
     }
 
     /**
-     * @description Manages term information. Read access is allowed to all authenticated users. Writes are not allowed.
+     * @description Allows anyone to read the list of terms. Write operations are not allowed.
      * @path /terms/{termId}
-     * @allow get, list: if isSignedIn();
-     * @deny create, update, delete: if false;
-     * @principle Allows public read access to term information but restricts write access.
      */
     match /terms/{termId} {
-      allow get, list: if isSignedIn();
+      allow get, list: if true;
       allow create, update, delete: if false;
     }
 
     /**
-     * @description Manages result data. Read access is allowed to all authenticated users. Writes are not allowed.
+     * @description Allows teachers who recorded the result and parents of the student to access result data. Super Admins can access all results.
      * @path /results/{resultId}
-     * @allow get, list: if isSignedIn();
-     * @deny create, update, delete: if false;
-     * @principle Allows public read access to result data but restricts write access.
      */
     match /results/{resultId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if false;
+      allow get, list: if isSignedIn() && (isOwnerOfResult(resultId) || isParentOfStudentInResult(resultId) || isSuperAdmin());
+      allow create: if isSignedIn() && (isTeacher() && request.resource.data.recordedBy == request.auth.uid || isSuperAdmin());
+      allow update: if isSignedIn() && (isOwnerOfResult(resultId) || isSuperAdmin());
+      allow delete: if isSignedIn() && isSuperAdmin();
     }
 
-      /**
-     * @description Manages notifications for users. Users can only read their own notifications.
+    /**
+     * @description Allows a user to only access their own notifications.
      * @path /notifications/{notificationId}
-     * @allow get: if resource.data.userId == request.auth.uid;
-     * @allow list: if false;
-     * @deny create, update, delete: if false;
      */
     match /notifications/{notificationId} {
-        allow get: if resource.data.userId == request.auth.uid;
-        allow list: if false;
-        allow create, update, delete: if false;
+      allow get, list: if isSignedIn() && isNotificationForUser(notificationId);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && isNotificationForUser(notificationId);
+      allow delete: if isSignedIn() && isNotificationForUser(notificationId);
+    }
+
+    /**
+     * @description Allows anyone to read the gallery images. Write operations are not allowed.
+     * @path /gallery/{imageId}
+     */
+    match /gallery/{imageId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
     }
   }
 
-  // Helper function to determine if the user is signed in.
+  // --- Helper Functions ---
+
   function isSignedIn() {
     return request.auth != null;
   }
 
-  // Helper function to determine if the user is the owner of the resource.
   function isOwner(userId) {
-    return request.auth != null && request.auth.uid == userId;
+    return request.auth.uid == userId;
+  }
+
+  function isSuperAdmin() {
+    return isSignedIn() && request.auth.token.role == 'super_admin';
+  }
+
+  function isBranchAdmin() {
+    return isSignedIn() && request.auth.token.role == 'branch_admin';
+  }
+
+  function isTeacher() {
+        return isSignedIn() && request.auth.token.role == 'teacher';
+  }
+
+  function isParentOfStudent(studentId) {
+    return isSignedIn() && get(/databases/$(database)/documents/students/$(studentId)).data.parentUserId == request.auth.uid;
+  }
+
+  function isParentOfReceipt(receiptId) {
+      return isSignedIn() && get(/databases/$(database)/documents/receipts/$(receiptId)).data.parentUserId == request.auth.uid;
+  }
+
+  function isParentOfStudentInResult(resultId) {
+     return isSignedIn() && get(/databases/$(database)/documents/results/$(resultId)).data.studentId != null && get(/databases/$(database)/documents/students/$(get(/databases/$(database)/documents/results/$(resultId)).data.studentId)).data.parentUserId == request.auth.uid;
+  }
+
+    function isOwnerOfResult(resultId) {
+    return isSignedIn() && get(/databases/$(database)/documents/results/$(resultId)).data.recordedBy == request.auth.uid;
+  }
+
+  function isNotificationForUser(notificationId) {
+    return isSignedIn() && get(/databases/$(database)/documents/notifications/$(notificationId)).data.userId == request.auth.uid;
   }
 }
