@@ -1,50 +1,54 @@
 
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
-import { Logo } from '@/components/logo';
-import { Button } from '@/components/ui/button';
-import { Twitter, Facebook, Instagram } from 'lucide-react';
+import { Logo } from '../logo';
+import { Button } from '../ui/button';
 
 export function PublicLayout({ children }: { children: React.ReactNode }) {
+  const navLinks = [
+    { name: 'Home', href: '/' },
+    { name: 'About', href: '/#about' },
+    { name: 'Branches', href: '/branches' },
+    { name: 'Gallery', href: '/#gallery' },
+    { name: 'Contact', href: '/#contact' },
+  ];
+
   return (
-    <div className="flex min-h-screen flex-col bg-white text-gray-800">
-      <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 backdrop-blur-lg">
-        <div className="container mx-auto flex h-20 items-center px-4">
-          <Link href="/" className="flex items-center gap-3 font-semibold">
-            <Logo className="h-10 w-10 text-primary-deep" />
-            <span className="text-2xl font-headline text-primary-deep">Al-Huffaazh Academy</span>
-          </Link>
-          <nav className="ml-auto hidden items-center gap-6 md:flex">
-            <Link href="/#about" className="text-sm font-medium text-gray-600 hover:text-primary-deep transition-colors">About</Link>
-            <Link href="/#branches" className="text-sm font-medium text-gray-600 hover:text-primary-deep transition-colors">Branches</Link>
-            <Link href="/#gallery" className="text-sm font-medium text-gray-600 hover:text-primary-deep transition-colors">Gallery</Link>
-            <Link href="/#contact" className="text-sm font-medium text-gray-600 hover:text-primary-deep transition-colors">Contact</Link>
-          </nav>
-          <div className="ml-auto flex items-center gap-2 md:ml-6">
-            <Button variant="outline" asChild className="rounded-xl border-primary-deep text-primary-deep hover:bg-accent hover:text-primary-deep">
-              <Link href="/login">Sign In</Link>
-            </Button>
-            <Button asChild className="rounded-xl bg-primary-deep hover:bg-primary-deep/90 text-white shadow-sm">
-              <Link href="/dashboard">Dashboard</Link>
-            </Button>
+    <div className="flex flex-col min-h-screen bg-white text-gray-800 font-body">
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg shadow-sm">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-20">
+            <Link href="/" className="flex items-center gap-2 text-primary-deep hover:text-primary-deep/80 transition-colors">
+              <Logo className="w-10 h-10" />
+              <span className="text-xl font-bold font-headline hidden sm:inline">Al-Huffaazh Academy</span>
+            </Link>
+            <nav className="hidden md:flex items-center gap-6 text-sm font-semibold">
+              {navLinks.map((link) => (
+                <Link key={link.name} href={link.href} className="text-gray-700 hover:text-primary-deep transition-colors">
+                  {link.name}
+                </Link>
+              ))}
+            </nav>
+            <div className="flex items-center gap-2">
+                 <Button asChild variant="outline" className="rounded-xl border-primary-deep text-primary-deep hover:bg-primary-deep hover:text-white transition-all">
+                    <Link href="/login">Portal Login</Link>
+                </Button>
+            </div>
           </div>
         </div>
       </header>
+
       <main className="flex-1">
         {children}
       </main>
-      <footer className="border-t border-gray-200 bg-gray-50">
-        <div className="container mx-auto flex flex-col items-center justify-between gap-6 py-8 px-4 text-center md:flex-row md:text-left">
-          <div className="flex items-center gap-3">
-             <Logo className="h-8 w-8 text-primary-deep" />
-             <span className="text-lg font-headline text-primary-deep">Al-Huffaazh Academy</span>
-          </div>
-          <p className="text-sm text-gray-500 font-body">© {new Date().getFullYear()} Al-Huffaazh Academy. All rights reserved.</p>
-          <div className="flex items-center gap-4">
-            <Link href="#" className="text-gray-500 hover:text-primary-deep"><Twitter size={20} /></Link>
-            <Link href="#" className="text-gray-500 hover:text-primary-deep"><Facebook size={20} /></Link>
-            <Link href="#" className="text-gray-500 hover:text-primary-deep"><Instagram size={20} /></Link>
-          </div>
+
+      <footer className="bg-gray-800 text-white">
+        <div className="container mx-auto px-4 py-8">
+            <div className="text-center">
+                <p>&copy; {new Date().getFullYear()} Al-Huffaazh Academy. All rights reserved.</p>
+            </div>
         </div>
       </footer>
     </div>
