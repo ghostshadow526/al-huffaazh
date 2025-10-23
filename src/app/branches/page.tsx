@@ -6,6 +6,7 @@ import { BranchCard } from "@/components/public/BranchCard";
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, orderBy, query } from 'firebase/firestore';
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Branch {
   id: string;
@@ -35,14 +36,22 @@ export default function AllBranchesPage() {
 
                     {isLoading ? (
                          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {[...Array(6)].map((_, i) => <Card key={i} className="rounded-2xl shadow-md"><CardContent className="p-6 h-64 animate-pulse bg-gray-200 rounded-2xl"></CardContent></Card>)}
+                            {[...Array(6)].map((_, i) => (
+                              <Card key={i} className="rounded-2xl shadow-md h-64 overflow-hidden">
+                                <CardContent className="p-0">
+                                  <Skeleton className="h-full w-full" />
+                                </CardContent>
+                              </Card>
+                            ))}
                         </div>
-                    ) : (
+                    ) : branches && branches.length > 0 ? (
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {branches?.map(branch => (
                                 <BranchCard key={branch.id} branch={branch} />
                             ))}
                         </div>
+                    ) : (
+                       <p className="text-center text-muted-foreground">No branches found.</p>
                     )}
                 </div>
             </section>

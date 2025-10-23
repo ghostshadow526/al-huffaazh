@@ -4,7 +4,7 @@
 import { useParams, notFound } from "next/navigation";
 import { PublicLayout } from "@/components/public/PublicLayout";
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, where } from "firebase/firestore";
+import { collection, query, where, orderBy } from "firebase/firestore";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { GalleryGrid } from "@/components/public/GalleryGrid";
@@ -42,10 +42,10 @@ export default function BranchPage() {
     const { data: branchData, isLoading: branchLoading } = useCollection<Branch>(branchQuery);
     const branch = branchData?.[0];
     
-    // Fetch gallery images for this branch
+    // Fetch gallery images for this branch, ordered by upload date
     const galleryQuery = useMemoFirebase(() => {
         if (!firestore || !branch?.id) return null;
-        return query(collection(firestore, 'gallery'), where('branchId', '==', branch.id));
+        return query(collection(firestore, 'gallery'), where('branchId', '==', branch.id), orderBy('uploadedAt', 'desc'));
     }, [firestore, branch?.id]);
 
     const { data: galleryData, isLoading: galleryLoading } = useCollection<GalleryImage>(galleryQuery);
@@ -57,26 +57,28 @@ export default function BranchPage() {
             <PublicLayout>
                 <div className="container mx-auto px-4 py-16 space-y-12">
                     <Skeleton className="h-12 w-1/2" />
-                    <Skeleton className="h-96 w-full" />
-                    <Skeleton className="h-48 w-full" />
+                    <Skeleton className="h-96 w-full rounded-2xl" />
+                    <Skeleton className="h-48 w-full rounded-2xl" />
                 </div>
             </PublicLayout>
         )
     }
 
+    if (!branch && !branchLoading) {
+        return notFound();
+    }
+    
     if (!branch) {
-        // Wait for loading to finish before showing not found
-        if (!branchLoading) return notFound();
-        return null;
+      return null;
     }
 
     return (
         <PublicLayout>
             {/* Branch Header */}
-            <section className="py-16 md:py-24 bg-gray-50 relative">
+            <section className="py-16 md:py-24 bg-gray-50 relative overflow-hidden">
                 <div className="absolute inset-0 -z-10 h-full w-full">
                     <Image 
-                        src={`https://picsum.photos/seed/${slug}header/1800/600`} 
+                        src={`https://picsum.photos/seed/${slug}-header/1800/600`} 
                         alt={`${branch.name} header`}
                         fill
                         style={{objectFit: 'cover'}}
@@ -95,7 +97,7 @@ export default function BranchPage() {
                 <div className="container mx-auto px-4 grid md:grid-cols-2 gap-12 items-center">
                     <div>
                        <Image 
-                         src={`https://picsum.photos/seed/${slug}about/600/500`}
+                         src={`https://picsum.photos/seed/${slug}-about/600/500`}
                          alt={`About ${branch.name}`}
                          width={600}
                          height={500}
@@ -105,7 +107,7 @@ export default function BranchPage() {
                     </div>
                     <div className="space-y-4">
                         <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">About Our {branch.name}</h2>
-                        <p className="text-gray-600 font-body">
+                        <p className="text-gray-600 font-body leading-relaxed">
                             {branch.description || `Welcome to the ${branch.name} of Al-Huffaazh Academy. We are committed to providing the highest standards of education and spiritual guidance to our students in a supportive and nurturing environment. Our dedicated staff and modern facilities ensure that every student has the opportunity to reach their full potential.`}
                         </p>
                     </div>
@@ -117,6 +119,7 @@ export default function BranchPage() {
                 <div className="container mx-auto px-4">
                     <div className="text-center mb-12">
                         <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Branch Gallery</h2>
+                        <p className="text-lg text-gray-600 mt-2 font-body">Moments from our recent events and activities.</p>
                     </div>
                     {galleryLoading ? (
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
