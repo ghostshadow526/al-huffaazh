@@ -1,83 +1,114 @@
 
 'use client';
 
+import React, { useState } from 'react';
 import Image from 'next/image';
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import * as Dialog from "@radix-ui/react-dialog";
-import { useState } from 'react';
-import { X } from 'lucide-react';
-import { Button } from '../ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent } from '@/components/ui/card';
+import { Dialog } from '@radix-ui/react-dialog';
+import { cn } from '@/lib/utils';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+interface GalleryImage {
+    src: string;
+    'data-ai-hint'?: string;
+}
 
 interface GalleryGridProps {
-  images: { src: string; 'data-ai-hint': string }[];
-  isLoading: boolean;
+    images: GalleryImage[];
+    isLoading: boolean;
 }
 
 export function GalleryGrid({ images, isLoading }: GalleryGridProps) {
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [selectedImage, setSelectedImage] = useState<number | null>(null);
 
-  if (isLoading) {
+    const openModal = (index: number) => {
+        setSelectedImage(index);
+    };
+
+    const closeModal = () => {
+        setSelectedImage(null);
+    };
+
+    const nextImage = () => {
+        if (selectedImage !== null) {
+            setSelectedImage((selectedImage + 1) % images.length);
+        }
+    };
+
+    const prevImage = () => {
+        if (selectedImage !== null) {
+            setSelectedImage((selectedImage - 1 + images.length) % images.length);
+        }
+    };
+
+    const currentImage = selectedImage !== null ? images[selectedImage] : null;
+
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-        {[...Array(6)].map((_, i) => (
-          <Card key={i} className="rounded-2xl shadow-md overflow-hidden aspect-w-1 aspect-h-1">
-            <Skeleton className="h-full w-full" />
-          </Card>
-        ))}
-      </div>
-    );
-  }
+        <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {isLoading ? (
+                    [...Array(8)].map((_, i) => (
+                        <Skeleton key={i} className="h-64 w-full" />
+                    ))
+                ) : (
+                    images.map((image, index) => (
+                        <Card key={index} className="overflow-hidden cursor-pointer group" onClick={() => openModal(index)}>
+                            <CardContent className="p-0">
+                                <Image
+                                    src={image.src}
+                                    alt={image['data-ai-hint'] || `Gallery image ${index + 1}`}
+                                    width={400}
+                                    height={400}
+                                    className="w-full h-64 object-cover transition-transform duration-300 group-hover:scale-105"
+                                    data-ai-hint={image['data-ai-hint']}
+                                />
+                            </CardContent>
+                        </Card>
+                    ))
+                )}
+            </div>
 
-  if (!images || images.length === 0) {
-    return <p className="text-center text-muted-foreground">No gallery images available yet.</p>;
-  }
+            <Dialog.Root open={selectedImage !== null} onOpenChange={(isOpen) => !isOpen && closeModal()}>
+                 <Dialog.Portal>
+                    <Dialog.Overlay className="fixed inset-0 bg-black/80 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+                    <Dialog.Content 
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                        onPointerDownOutside={(e) => {
+                            if (e.target === e.currentTarget) {
+                                closeModal();
+                            }
+                        }}
+                    >
+                         <Dialog.Title className="sr-only">Enlarged Gallery Image</Dialog.Title>
+                        {currentImage && (
+                            <div className="relative w-full h-full max-w-4xl max-h-[90vh] flex items-center justify-center">
+                                <Image
+                                    src={currentImage.src}
+                                    alt={currentImage['data-ai-hint'] || 'Enlarged gallery image'}
+                                    width={1200}
+                                    height={800}
+                                    className="object-contain w-auto h-auto max-w-full max-h-full rounded-lg"
+                                    data-ai-hint={currentImage['data-ai-hint']}
+                                />
 
-  return (
-    <Dialog.Root>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-        {images.map((image, index) => (
-            <Dialog.Trigger key={index} asChild>
-                <div onClick={() => setSelectedImage(image.src)} className="cursor-pointer">
-                    <Card className="rounded-2xl shadow-md overflow-hidden group transform transition-transform duration-300 hover:scale-105">
-                        <CardContent className="p-0 relative aspect-[4/3]">
-                        <Image
-                            src={image.src}
-                            alt={image['data-ai-hint'] || `Gallery image ${index + 1}`}
-                            fill
-                            style={{ objectFit: 'cover' }}
-                            className="transition-opacity duration-300 group-hover:opacity-90"
-                            data-ai-hint={image['data-ai-hint']}
-                        />
-                        </CardContent>
-                    </Card>
-                </div>
-            </Dialog.Trigger>
-        ))}
+                                <Button variant="ghost" size="icon" onClick={closeModal} className="absolute top-2 right-2 bg-black/50 hover:bg-black/75 text-white rounded-full z-50">
+                                    <X className="h-6 w-6" />
+                                </Button>
+                                
+                                <Button variant="ghost" size="icon" onClick={prevImage} className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 text-white rounded-full z-50">
+                                    <ChevronLeft className="h-6 w-6" />
+                                </Button>
+
+                                <Button variant="ghost" size="icon" onClick={nextImage} className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/75 text-white rounded-full z-50">
+                                    <ChevronRight className="h-6 w-6" />
+                                </Button>
+                            </div>
+                        )}
+                    </Dialog.Content>
+                </Dialog.Portal>
+            </Dialog.Root>
         </div>
-         <Dialog.Portal>
-            <Dialog.Overlay className="fixed inset-0 bg-black/80 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-            <Dialog.Content 
-                className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                onPointerDownOutside={(e) => {
-                    if (e.target === e.currentTarget) {
-                        setSelectedImage(null)
-                    }
-                }}
-            >
-            {selectedImage && (
-                <div className="relative max-w-4xl max-h-[90vh]">
-                     <img src={selectedImage} alt="Enlarged view" className="object-contain w-full h-full rounded-lg shadow-2xl" />
-                     <Dialog.Close asChild>
-                         <Button variant="ghost" size="icon" className="absolute -top-4 -right-4 h-10 w-10 rounded-full bg-white/20 text-white hover:bg-white/30" onClick={() => setSelectedImage(null)}>
-                            <X size={24} />
-                         </Button>
-                    </Dialog.Close>
-                </div>
-            )}
-            </Dialog.Content>
-         </Dialog.Portal>
-    </Dialog.Root>
-  );
+    );
 }
-
