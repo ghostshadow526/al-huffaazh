@@ -28,6 +28,19 @@ interface GalleryImage {
     caption?: string;
 }
 
+function BranchPageSkeleton() {
+    return (
+        <PublicLayout>
+            <div className="container mx-auto px-4 py-16 space-y-12">
+                <Skeleton className="h-12 w-1/2" />
+                <Skeleton className="h-96 w-full rounded-2xl" />
+                <Skeleton className="h-48 w-full rounded-2xl" />
+            </div>
+        </PublicLayout>
+    )
+}
+
+
 export default function BranchPage() {
     const params = useParams();
     const slug = params.slug as string;
@@ -53,23 +66,12 @@ export default function BranchPage() {
     const galleryImages = galleryData?.map(img => ({ src: img.imageUrl, 'data-ai-hint': img.caption || 'school event' })) || [];
     
     if (branchLoading) {
-        return (
-            <PublicLayout>
-                <div className="container mx-auto px-4 py-16 space-y-12">
-                    <Skeleton className="h-12 w-1/2" />
-                    <Skeleton className="h-96 w-full rounded-2xl" />
-                    <Skeleton className="h-48 w-full rounded-2xl" />
-                </div>
-            </PublicLayout>
-        )
+        return <BranchPageSkeleton />;
     }
 
-    if (!branch && !branchLoading) {
-        return notFound();
-    }
-    
     if (!branch) {
-      return null;
+        // Only call notFound after we've confirmed the data isn't there
+        return notFound();
     }
 
     return (
