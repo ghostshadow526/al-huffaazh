@@ -6,27 +6,27 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, BookOpen, Building } from 'lucide-react';
 
-export default function DokanLereHomePage() {
+export default function GambareOgbomoshoHomePage() {
   return (
     <div className="space-y-16 pb-16">
       {/* Hero Section */}
       <section className="relative h-[60vh] bg-gray-800 text-white flex items-center justify-center">
         <Image
-          src="https://picsum.photos/seed/dokan-lere-hero/1800/800"
-          alt="Dokan Lere Branch"
+          src="https://picsum.photos/seed/gambare-hero/1800/800"
+          alt="Gambare Ogbomosho Branch"
           fill
           className="object-cover opacity-30"
           data-ai-hint="school campus building"
         />
         <div className="relative z-10 text-center px-4 space-y-4">
           <h1 className="text-4xl md:text-6xl font-bold font-headline">
-            Welcome to Dokan Lere Branch
+            Welcome to Gambare Ogbomosho Branch
           </h1>
           <p className="text-lg md:text-xl max-w-3xl mx-auto">
-            A center of excellence for Islamic and Western education in the heart of the community.
+            Nurturing faith and knowledge in the heart of Ogbomosho.
           </p>
           <Button size="lg" asChild>
-            <Link href="/branches/dokan-lere/contact">Enroll Now</Link>
+            <Link href="/branches/gambare-ogbomosho/contact">Enroll Now</Link>
           </Button>
         </div>
       </section>
@@ -64,18 +64,18 @@ export default function DokanLereHomePage() {
                 <CardContent>
                     <p className="text-muted-foreground mb-4">Discover our mission, vision, and the values that guide us.</p>
                     <Button asChild>
-                        <Link href="/branches/dokan-lere/about">Learn More</Link>
+                        <Link href="/branches/gambare-ogbomosho/about">Learn More</Link>
                     </Button>
                 </CardContent>
             </Card>
             <Card className="hover:shadow-xl transition-shadow">
                 <CardHeader>
-                    <CardTitle>Contact Us</CardTitle>
+                    <CardTitle>Our Photo Gallery</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-muted-foreground mb-4">Get in touch with our team for inquiries and admissions.</p>
-                     <Button asChild>
-                        <Link href="/branches/dokan-lere/contact">Get In Touch</Link>
+                    <p className="text-muted-foreground mb-4">See moments from our school events, activities, and daily life.</p>
+                    <Button asChild>
+                        <Link href="/branches/gambare-ogbomosho/gallery">View Gallery</Link>
                     </Button>
                 </CardContent>
             </Card>
