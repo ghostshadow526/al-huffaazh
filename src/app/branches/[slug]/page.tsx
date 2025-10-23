@@ -79,7 +79,7 @@ export default function BranchPage() {
 
     // Only call notFound after loading is complete and we've confirmed the data isn't there
     if (!branchLoading && !branch) {
-        return notFound();
+        notFound();
     }
     
     if (!branch) {

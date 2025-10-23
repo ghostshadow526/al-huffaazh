@@ -1,34 +1,37 @@
 
 'use client';
-import { Button } from "@/components/ui/button"
-import Link from "next/link";
+
+import Image from 'next/image';
+import { Button } from '../ui/button';
+import Link from 'next/link';
 
 export function HeroSection() {
-    const scrollToContact = () => {
-        const contactSection = document.getElementById('contact');
-        if (contactSection) {
-            contactSection.scrollIntoView({ behavior: 'smooth' });
-        }
-    }
-
     return (
-        <section className="relative bg-white py-24 md:py-32 lg:py-40 text-center overflow-hidden">
+        <section className="relative h-[60vh] md:h-[70vh] flex items-center justify-center text-center text-white overflow-hidden">
             <div className="absolute inset-0 z-0">
-                <div className="absolute inset-0 bg-gradient-to-b from-accent/50 to-white"></div>
+                <Image
+                    src="https://picsum.photos/seed/hero-bg/1800/1200"
+                    alt="Hero background image of a school"
+                    fill
+                    style={{objectFit: 'cover'}}
+                    priority
+                    data-ai-hint="school students outside"
+                />
+                <div className="absolute inset-0 bg-primary-deep/60"></div>
             </div>
-            <div className="container mx-auto px-4 relative z-10">
-                <h1 className="text-4xl md:text-6xl font-extrabold font-headline text-primary-deep tracking-tight">
-                    Welcome to Al-Huffaazh Academy
+            <div className="relative z-10 container mx-auto px-4 space-y-6">
+                <h1 className="text-4xl md:text-6xl font-bold font-headline leading-tight drop-shadow-lg">
+                    Excellence in Faith & Knowledge
                 </h1>
-                <p className="mt-4 max-w-3xl mx-auto text-lg md:text-xl text-gray-600 font-body">
-                    Building disciplined scholars through excellence and faith.
+                <p className="text-lg md:text-xl max-w-3xl mx-auto text-gray-200 drop-shadow-md">
+                    Nurturing the next generation of leaders with a balanced blend of Islamic and modern education.
                 </p>
-                <div className="mt-8 flex justify-center gap-4 flex-wrap">
-                    <Button asChild size="lg" className="rounded-xl bg-primary-deep hover:bg-primary-deep/90 shadow-lg transition-transform hover:scale-105">
-                        <Link href="/branches">View Our Branches</Link>
+                <div className="space-x-4">
+                    <Button asChild size="lg" className="rounded-xl bg-accent text-accent-foreground hover:bg-accent/90">
+                        <Link href="/#branches">Explore Our Branches</Link>
                     </Button>
-                     <Button asChild size="lg" variant="outline" className="rounded-xl border-2 border-primary-deep text-primary-deep shadow-lg transition-transform hover:scale-105 hover:bg-accent/50" onClick={scrollToContact}>
-                        <a href="#contact">Contact Us</a>
+                    <Button asChild variant="outline" size="lg" className="rounded-xl border-white text-white hover:bg-white hover:text-primary-deep">
+                        <Link href="/login">Portal Login</Link>
                     </Button>
                 </div>
             </div>
