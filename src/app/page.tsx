@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { BranchCard } from '@/components/public/BranchCard';
-import { GalleryGrid } from '@/components/public/GalleryGrid';
 import { ContactSection } from '@/components/public/ContactSection';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -20,12 +19,6 @@ interface Branch {
   slug: string;
 }
 
-interface GalleryImage {
-    id: string;
-    imageUrl: string;
-    caption?: string;
-}
-
 export default function MotherSitePage() {
   const firestore = useFirestore();
 
@@ -34,17 +27,8 @@ export default function MotherSitePage() {
     return query(collection(firestore, 'branches'), orderBy('name'), limit(3));
   }, [firestore]);
 
-  const galleryQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'gallery'), orderBy('uploadedAt', 'desc'), limit(6));
-  }, [firestore]);
-
 
   const { data: branches, isLoading: branchesLoading } = useCollection<Branch>(branchesQuery);
-  const { data: galleryData, isLoading: galleryLoading } = useCollection<GalleryImage>(galleryQuery);
-
-  const galleryImages = galleryData?.map(img => ({ src: img.imageUrl, 'data-ai-hint': img.caption || 'school event' })) || [];
-
 
   return (
     <PublicLayout>
@@ -102,12 +86,17 @@ export default function MotherSitePage() {
       </section>
 
       <section id="gallery" className="py-16 md:py-24 bg-white">
-          <div className="container mx-auto px-4">
-              <div className="text-center mb-12">
-                  <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Gallery</h2>
+          <div className="container mx-auto px-4 text-center">
+              <div className="mb-12">
+                  <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Our Gallery</h2>
                   <p className="text-lg text-gray-600 mt-2 font-body">A glimpse into life at Al-Huffaazh Academy.</p>
               </div>
-              <GalleryGrid images={galleryImages} isLoading={galleryLoading}/>
+              <p className="max-w-2xl mx-auto text-gray-600 mb-8">
+                We capture moments of learning, community, and joy. Our gallery showcases the vibrant life at our academies, from annual sports days to classroom activities.
+              </p>
+              <Button asChild size="lg" className="rounded-xl bg-primary-deep hover:bg-primary-deep/90">
+                  <Link href="/gallery">View Full Gallery</Link>
+              </Button>
           </div>
       </section>
       
