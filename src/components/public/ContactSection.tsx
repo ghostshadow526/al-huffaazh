@@ -1,10 +1,11 @@
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
-import { Phone, Mail, MapPin } from "lucide-react";
+'use client';
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Mail, Phone, MapPin } from "lucide-react"
+
 
 export function ContactSection() {
     return (
@@ -14,56 +15,44 @@ export function ContactSection() {
                     <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Get in Touch</h2>
                     <p className="text-lg text-gray-600 mt-2 font-body">We'd love to hear from you. Please reach out with any questions.</p>
                 </div>
-                <div className="grid md:grid-cols-2 gap-12">
-                    <div className="space-y-8">
-                        <div className="flex items-start gap-4">
-                            <div className="bg-accent p-3 rounded-full text-primary-deep"><MapPin size={24} /></div>
+                <div className="grid md:grid-cols-2 gap-16 items-start">
+                    <div className="space-y-6">
+                         <div className="flex items-start gap-4">
+                            <div className="flex-shrink-0 w-12 h-12 bg-accent rounded-lg flex items-center justify-center">
+                                <MapPin className="w-6 h-6 text-primary-deep"/>
+                            </div>
                             <div>
-                                <h3 className="text-xl font-semibold font-headline text-primary-deep">Head Office</h3>
-                                <p className="text-gray-600">Dutse Uku, Jos North, Plateau State, Nigeria</p>
+                                <h3 className="text-lg font-semibold font-headline">Main Office</h3>
+                                <p className="text-gray-600">Dutse-Uku, Jos North, Plateau State, Nigeria</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-4">
-                            <div className="bg-accent p-3 rounded-full text-primary-deep"><Mail size={24} /></div>
+                             <div className="flex-shrink-0 w-12 h-12 bg-accent rounded-lg flex items-center justify-center">
+                                <Mail className="w-6 h-6 text-primary-deep"/>
+                            </div>
                             <div>
-                                <h3 className="text-xl font-semibold font-headline text-primary-deep">Email Us</h3>
-                                <p className="text-gray-600">contact@alhuffaazh.com</p>
+                                <h3 className="text-lg font-semibold font-headline">Email Us</h3>
+                                <p className="text-gray-600">info@alhuffaazh.com</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-4">
-                            <div className="bg-accent p-3 rounded-full text-primary-deep"><Phone size={24} /></div>
+                            <div className="flex-shrink-0 w-12 h-12 bg-accent rounded-lg flex items-center justify-center">
+                                <Phone className="w-6 h-6 text-primary-deep"/>
+                            </div>
                             <div>
-                                <h3 className="text-xl font-semibold font-headline text-primary-deep">Call Us</h3>
+                                <h3 className="text-lg font-semibold font-headline">Call Us</h3>
                                 <p className="text-gray-600">+234 (803) 123-4567</p>
                             </div>
                         </div>
                     </div>
-                    <Card className="rounded-2xl shadow-lg p-2">
-                        <CardHeader>
-                            <CardTitle className="font-headline text-2xl text-primary-deep">Send a Message</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <form className="space-y-4">
-                                <div className="space-y-1">
-                                    <Label htmlFor="name" className="font-body">Full Name</Label>
-                                    <Input id="name" placeholder="Your Name" className="rounded-xl" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="email" className="font-body">Email Address</Label>
-                                    <Input id="email" type="email" placeholder="you@example.com" className="rounded-xl" />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="message" className="font-body">Message</Label>
-                                    <Textarea id="message" placeholder="Your message..." className="rounded-xl min-h-[120px]" />
-                                </div>
-                                <Button type="submit" className="w-full rounded-xl bg-primary-deep hover:bg-primary-deep/90 text-white shadow-md">
-                                    Send Message
-                                </Button>
-                            </form>
-                        </CardContent>
-                    </Card>
+                    <form className="space-y-4 bg-white p-8 rounded-2xl shadow-lg">
+                        <Input type="text" placeholder="Your Name" className="text-base"/>
+                        <Input type="email" placeholder="Your Email" className="text-base"/>
+                        <Textarea placeholder="Your Message" rows={5} className="text-base" />
+                        <Button size="lg" className="w-full rounded-xl bg-primary-deep hover:bg-primary-deep/90">Send Message</Button>
+                    </form>
                 </div>
             </div>
         </section>
-    );
+    )
 }

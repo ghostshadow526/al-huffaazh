@@ -6,7 +6,7 @@ import { PublicLayout } from '@/components/public/PublicLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { BranchCard } from '@/components/public/BranchCard';
 import { GalleryGrid } from '@/components/public/GalleryGrid';
 import { ContactSection } from '@/components/public/ContactSection';
@@ -20,24 +20,31 @@ interface Branch {
   slug: string;
 }
 
+interface GalleryImage {
+    id: string;
+    imageUrl: string;
+    caption?: string;
+}
+
 export default function MotherSitePage() {
   const firestore = useFirestore();
 
   const branchesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collection(firestore, 'branches');
+    return query(collection(firestore, 'branches'), orderBy('name'), limit(3));
   }, [firestore]);
 
-  const { data: branches, isLoading: branchesLoading } = useCollection<Branch>(branchesQuery);
+  const galleryQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, 'gallery'), orderBy('uploadedAt', 'desc'), limit(6));
+  }, [firestore]);
 
-  const galleryImages = [
-    { src: 'https://picsum.photos/seed/gal1/600/400', 'data-ai-hint': 'students learning' },
-    { src: 'https://picsum.photos/seed/gal2/600/400', 'data-ai-hint': 'quran reading' },
-    { src: 'https://picsum.photos/seed/gal3/600/400', 'data-ai-hint': 'school building' },
-    { src: 'https://picsum.photos/seed/gal4/600/400', 'data-ai-hint': 'graduation ceremony' },
-    { src: 'https://picsum.photos/seed/gal5/600/400', 'data-ai-hint': 'classroom activity' },
-    { src: 'https://picsum.photos/seed/gal6/600/400', 'data-ai-hint': 'teacher students' },
-  ];
+
+  const { data: branches, isLoading: branchesLoading } = useCollection<Branch>(branchesQuery);
+  const { data: galleryData, isLoading: galleryLoading } = useCollection<GalleryImage>(galleryQuery);
+
+  const galleryImages = galleryData?.map(img => ({ src: img.imageUrl, 'data-ai-hint': img.caption || 'school event' })) || [];
+
 
   return (
     <PublicLayout>
@@ -81,7 +88,7 @@ export default function MotherSitePage() {
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {branches?.slice(0, 3).map(branch => (
+              {branches?.map(branch => (
                 <BranchCard key={branch.id} branch={branch} />
               ))}
             </div>
@@ -100,7 +107,7 @@ export default function MotherSitePage() {
                   <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Gallery</h2>
                   <p className="text-lg text-gray-600 mt-2 font-body">A glimpse into life at Al-Huffaazh Academy.</p>
               </div>
-              <GalleryGrid images={galleryImages} />
+              <GalleryGrid images={galleryImages} isLoading={galleryLoading}/>
           </div>
       </section>
       

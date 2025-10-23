@@ -121,15 +121,7 @@ export default function BranchPage() {
                         <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Branch Gallery</h2>
                         <p className="text-lg text-gray-600 mt-2 font-body">Moments from our recent events and activities.</p>
                     </div>
-                    {galleryLoading ? (
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                           {[...Array(3)].map((_, i) => <Skeleton key={i} className="rounded-2xl h-64 bg-gray-200" />)}
-                        </div>
-                    ) : galleryImages.length > 0 ? (
-                        <GalleryGrid images={galleryImages} />
-                    ) : (
-                        <p className="text-center text-gray-500">No gallery images have been uploaded for this branch yet.</p>
-                    )}
+                    <GalleryGrid images={galleryImages} isLoading={galleryLoading} />
                 </div>
             </section>
 
