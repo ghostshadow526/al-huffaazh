@@ -1,112 +1,117 @@
 
 'use client';
-
-import React from 'react';
-import Link from 'next/link';
-import { Logo } from '@/components/logo';
-import { Button } from '@/components/ui/button';
-import { usePathname } from 'next/navigation';
-import { cn } from '@/lib/utils';
-import { Menu, X } from 'lucide-react';
-import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button"
+import { Logo } from "@/components/logo";
+import Link from "next/link";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Menu } from "lucide-react";
+import React from "react";
 
 const navLinks = [
-    { href: '/#about', text: 'About' },
-    { href: '/#branches', text: 'Branches' },
-    { href: '/#gallery', text: 'Gallery' },
-    { href: '/#contact', text: 'Contact' },
+    { name: 'Home', href: '/' },
+    { name: 'About', href: '/#about' },
+    { name: 'Branches', href: '/branches' },
+    { name: 'Gallery', href: '/#gallery' },
+    { name: 'Contact', href: '/#contact' }
 ];
 
 export function PublicLayout({ children }: { children: React.ReactNode }) {
-    const pathname = usePathname();
     const [isOpen, setIsOpen] = React.useState(false);
-
     return (
-        <div className="min-h-screen bg-background text-foreground font-body">
+        <div className="min-h-screen flex flex-col font-body bg-white">
             <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <div className="container mx-auto flex h-20 items-center justify-between px-4">
-                    <Link href="/" className="flex items-center gap-2 font-bold text-xl">
-                        <Logo className="h-8 w-8 text-primary-deep" />
-                        <span className="font-headline">Al-Huffaazh</span>
+                <div className="container mx-auto px-4 h-20 flex items-center justify-between">
+                    <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary-deep">
+                        <Logo className="w-8 h-8 text-primary" />
+                        <span className="font-headline">Al-Huffaazh Academy</span>
                     </Link>
-                    
-                    {/* Desktop Navigation */}
                     <nav className="hidden md:flex items-center gap-6 text-base font-medium">
-                       {navLinks.map(link => (
-                          <Link key={link.href} href={link.href} className="text-gray-600 hover:text-primary-deep transition-colors">
-                              {link.text}
-                          </Link>
-                       ))}
+                        {navLinks.map(link => (
+                             <Link key={link.name} href={link.href} className="text-gray-700 hover:text-primary transition-colors">
+                                {link.name}
+                            </Link>
+                        ))}
                     </nav>
-
-                    <div className="hidden md:flex items-center gap-2">
-                        <Button asChild variant="outline" className="rounded-xl">
-                            <Link href="/login">Parent Portal</Link>
-                        </Button>
+                    <div className="hidden md:block">
                         <Button asChild className="rounded-xl bg-primary-deep hover:bg-primary-deep/90">
-                           <Link href="/login">Staff Portal</Link>
+                            <Link href="/login">Portal Login</Link>
                         </Button>
                     </div>
-
-                    {/* Mobile Navigation */}
                     <div className="md:hidden">
-                       <Sheet open={isOpen} onOpenChange={setIsOpen}>
-                          <SheetTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                                <Menu className="h-6 w-6" />
-                                <span className="sr-only">Open menu</span>
-                            </Button>
-                          </SheetTrigger>
-                          <SheetContent side="right" className="w-full max-w-sm bg-background p-6">
-                            <div className="flex flex-col h-full">
-                                <div className="flex items-center justify-between mb-8">
-                                    <Link href="/" className="flex items-center gap-2 font-bold text-xl" onClick={() => setIsOpen(false)}>
-                                        <Logo className="h-8 w-8 text-primary-deep" />
+                        <Sheet open={isOpen} onOpenChange={setIsOpen}>
+                            <SheetTrigger asChild>
+                                <Button variant="outline" size="icon">
+                                    <Menu className="h-6 w-6" />
+                                    <span className="sr-only">Open menu</span>
+                                </Button>
+                            </SheetTrigger>
+                            <SheetContent side="left">
+                                <div className="p-6">
+                                     <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary-deep mb-8" onClick={() => setIsOpen(false)}>
+                                        <Logo className="w-8 h-8 text-primary" />
                                         <span className="font-headline">Al-Huffaazh</span>
                                     </Link>
-                                </div>
-
-                                <nav className="flex flex-col gap-6 text-lg font-medium">
-                                    {navLinks.map(link => (
-                                      <Link key={link.href} href={link.href} className="text-gray-600 hover:text-primary-deep transition-colors" onClick={() => setIsOpen(false)}>
-                                          {link.text}
-                                      </Link>
-                                   ))}
-                                </nav>
-                                <div className="mt-auto space-y-4">
-                                     <Button asChild variant="outline" className="w-full rounded-xl" onClick={() => setIsOpen(false)}>
-                                        <Link href="/login">Parent Portal</Link>
-                                    </Button>
-                                    <Button asChild className="w-full rounded-xl bg-primary-deep hover:bg-primary-deep/90" onClick={() => setIsOpen(false)}>
-                                       <Link href="/login">Staff Portal</Link>
+                                    <nav className="flex flex-col gap-6 text-lg font-medium">
+                                        {navLinks.map(link => (
+                                            <Link key={link.name} href={link.href} className="text-gray-700 hover:text-primary transition-colors" onClick={() => setIsOpen(false)}>
+                                                {link.name}
+                                            </Link>
+                                        ))}
+                                    </nav>
+                                    <Button asChild className="w-full mt-8 rounded-xl bg-primary-deep hover:bg-primary-deep/90" onClick={() => setIsOpen(false)}>
+                                        <Link href="/login">Portal Login</Link>
                                     </Button>
                                 </div>
-                            </div>
-                          </SheetContent>
+                            </SheetContent>
                         </Sheet>
                     </div>
                 </div>
             </header>
-            
-            <main>
+
+            <main className="flex-1">
                 {children}
             </main>
 
-            <footer className="bg-gray-800 text-white">
-                <div className="container mx-auto px-4 py-8">
-                    <div className="flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-4">
-                         <p className="text-sm text-gray-400">&copy; {new Date().getFullYear()} Al-Huffaazh Academy. All Rights Reserved.</p>
-                         <div className="flex items-center gap-4">
-                            <Link href="#" className="text-gray-400 hover:text-white transition-colors">Privacy Policy</Link>
-                            <Link href="#" className="text-gray-400 hover:text-white transition-colors">Terms of Service</Link>
-                         </div>
+            <footer className="bg-gray-900 text-white">
+                <div className="container mx-auto px-4 py-12">
+                    <div className="grid md:grid-cols-3 gap-8">
+                        <div>
+                            <h3 className="font-headline text-2xl font-semibold">Al-Huffaazh Academy</h3>
+                            <p className="mt-2 text-gray-400">Building disciplined scholars through excellence and faith.</p>
+                        </div>
+                         <div>
+                            <h4 className="font-semibold text-lg text-gray-300">Quick Links</h4>
+                             <ul className="mt-4 space-y-2">
+                                {navLinks.map(link => (
+                                    <li key={link.href}><Link href={link.href} className="text-gray-400 hover:text-white">{link.name}</Link></li>
+                                ))}
+                                <li><Link href="/login" className="text-gray-400 hover:text-white">Portal Login</Link></li>
+                            </ul>
+                        </div>
+                         <div>
+                             <h4 className="font-semibold text-lg text-gray-300">Contact Us</h4>
+                             <ul className="mt-4 space-y-2 text-gray-400">
+                                <li className="flex items-center gap-2">
+                                    <MapPin size={16} />
+                                    <span>Main Office, Jos, Nigeria</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                    <Mail size={16} />
+                                    <a href="mailto:info@alhuffaazh.com" className="hover:text-white">info@alhuffaazh.com</a>
+                                </li>
+                                 <li className="flex items-center gap-2">
+                                    <Phone size={16} />
+                                    <a href="tel:+234123456789" className="hover:text-white">+234 (123) 456-789</a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div className="mt-12 border-t border-gray-800 pt-8 text-center text-gray-500">
+                        <p>&copy; {new Date().getFullYear()} Al-Huffaazh Academy. All rights reserved.</p>
                     </div>
                 </div>
             </footer>
         </div>
     );
 }
+

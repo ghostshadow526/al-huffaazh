@@ -1,62 +1,83 @@
 
 'use client';
 
-import React from 'react';
 import Image from 'next/image';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import * as Dialog from "@radix-ui/react-dialog";
+import { useState } from 'react';
+import { X } from 'lucide-react';
+import { Button } from '../ui/button';
 
 interface GalleryGridProps {
-  images: { src: string; 'data-ai-hint'?: string }[];
+  images: { src: string; 'data-ai-hint': string }[];
   isLoading: boolean;
 }
 
 export function GalleryGrid({ images, isLoading }: GalleryGridProps) {
-    if (isLoading) {
-        return (
-             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {[...Array(8)].map((_, i) => (
-                    <div key={i} className="aspect-square">
-                        <Skeleton className="w-full h-full rounded-2xl" />
-                    </div>
-                ))}
-            </div>
-        )
-    }
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-    if (!images || images.length === 0) {
-        return <p className="text-center text-muted-foreground">No gallery images have been uploaded for this branch yet.</p>
-    }
-
+  if (isLoading) {
     return (
-        <Dialog>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {images.map((image, index) => (
-                    <DialogTrigger key={index} asChild>
-                        <div className="aspect-square relative rounded-2xl overflow-hidden cursor-pointer group">
-                             <Image
-                                src={image.src}
-                                alt={image['data-ai-hint'] || `Gallery image ${index + 1}`}
-                                fill
-                                style={{ objectFit: 'cover' }}
-                                className="transition-transform duration-300 group-hover:scale-110"
-                                data-ai-hint={image['data-ai-hint'] || 'school event'}
-                                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                            />
-                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                        </div>
-                    </DialogTrigger>
-                ))}
-            </div>
-             <DialogContent className="max-w-4xl p-2 bg-transparent border-0">
-                <Image 
-                    src={images[0].src} // This will need to be dynamic if we want to click on any image
-                    alt="Enlarged gallery view"
-                    width={1200}
-                    height={800}
-                    className="rounded-lg object-contain w-full h-auto"
-                />
-            </DialogContent>
-        </Dialog>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+        {[...Array(6)].map((_, i) => (
+          <Card key={i} className="rounded-2xl shadow-md overflow-hidden aspect-w-1 aspect-h-1">
+            <Skeleton className="h-full w-full" />
+          </Card>
+        ))}
+      </div>
     );
+  }
+
+  if (!images || images.length === 0) {
+    return <p className="text-center text-muted-foreground">No gallery images available yet.</p>;
+  }
+
+  return (
+    <Dialog.Root>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+        {images.map((image, index) => (
+            <Dialog.Trigger key={index} asChild>
+                <div onClick={() => setSelectedImage(image.src)} className="cursor-pointer">
+                    <Card className="rounded-2xl shadow-md overflow-hidden group transform transition-transform duration-300 hover:scale-105">
+                        <CardContent className="p-0 relative aspect-[4/3]">
+                        <Image
+                            src={image.src}
+                            alt={image['data-ai-hint'] || `Gallery image ${index + 1}`}
+                            fill
+                            style={{ objectFit: 'cover' }}
+                            className="transition-opacity duration-300 group-hover:opacity-90"
+                            data-ai-hint={image['data-ai-hint']}
+                        />
+                        </CardContent>
+                    </Card>
+                </div>
+            </Dialog.Trigger>
+        ))}
+        </div>
+         <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 bg-black/80 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+            <Dialog.Content 
+                className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                onPointerDownOutside={(e) => {
+                    if (e.target === e.currentTarget) {
+                        setSelectedImage(null)
+                    }
+                }}
+            >
+            {selectedImage && (
+                <div className="relative max-w-4xl max-h-[90vh]">
+                     <img src={selectedImage} alt="Enlarged view" className="object-contain w-full h-full rounded-lg shadow-2xl" />
+                     <Dialog.Close asChild>
+                         <Button variant="ghost" size="icon" className="absolute -top-4 -right-4 h-10 w-10 rounded-full bg-white/20 text-white hover:bg-white/30" onClick={() => setSelectedImage(null)}>
+                            <X size={24} />
+                         </Button>
+                    </Dialog.Close>
+                </div>
+            )}
+            </Dialog.Content>
+         </Dialog.Portal>
+    </Dialog.Root>
+  );
 }
+
