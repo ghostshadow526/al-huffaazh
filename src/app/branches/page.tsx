@@ -27,11 +27,11 @@ export default function AllBranchesPage() {
 
     return (
         <PublicLayout>
-            <section className="py-16 md:py-24 bg-white">
-                <div className="container mx-auto px-4">
+            <section className="py-16 md:py-24 bg-gray-50">
+                 <div className="container mx-auto px-4">
                     <div className="text-center mb-12">
                         <h1 className="text-4xl md:text-5xl font-bold font-headline text-primary-deep">Our Branches</h1>
-                        <p className="text-lg text-gray-600 mt-2 font-body">Explore our network of academies dedicated to excellence.</p>
+                        <p className="text-lg text-gray-600 mt-2 font-body">Explore our network of academies dedicated to excellence in education and faith.</p>
                     </div>
 
                     {isLoading ? (
@@ -51,7 +51,7 @@ export default function AllBranchesPage() {
                             ))}
                         </div>
                     ) : (
-                       <p className="text-center text-muted-foreground">No branches found.</p>
+                       <p className="text-center text-muted-foreground">No branches found. Please check back later.</p>
                     )}
                 </div>
             </section>
