@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { BranchCard } from '@/components/public/BranchCard';
-import { ContactSection } from '@/components/public/ContactSection';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -33,32 +32,6 @@ export default function MotherSitePage() {
   return (
     <PublicLayout>
       <HeroSection />
-
-      <section id="about" className="py-16 md:py-24 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="space-y-4">
-              <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">About Al-Huffaazh Academy</h2>
-              <p className="text-lg text-gray-600 font-body">
-                Al-Huffaazh Academy is a leading institution dedicated to providing an exceptional blend of Islamic and Western education. Our core mission is to nurture the next generation of scholars and leaders who are not only proficient in modern sciences but are also deeply rooted in the teachings of the Holy Quran.
-              </p>
-              <p className="text-gray-600 font-body">
-                We believe in creating a disciplined, faith-based environment where students can thrive academically, morally, and spiritually. Our curriculum is designed to foster critical thinking, creativity, and a lifelong love for learning, all within a framework of Islamic values.
-              </p>
-            </div>
-            <div>
-              <Image 
-                src="https://picsum.photos/seed/about1/600/400"
-                alt="Students in a classroom"
-                width={600}
-                height={400}
-                className="rounded-2xl shadow-lg"
-                data-ai-hint="students classroom"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
 
       <section id="branches" className="py-16 md:py-24 bg-gray-50">
         <div className="container mx-auto px-4">
@@ -99,8 +72,6 @@ export default function MotherSitePage() {
               </Button>
           </div>
       </section>
-      
-      <ContactSection />
       
     </PublicLayout>
   );
