@@ -1,8 +1,9 @@
+
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
 import QrScanner from 'qr-scanner';
-import { type Student } from '@/app/(app)/students/student-table';
+import { type Student } from '@/app/(dashboard)/students/student-table';
 import { doc, getDoc, Firestore } from 'firebase/firestore';
 import { Button } from './ui/button';
 import { useFirestore } from '@/firebase';
