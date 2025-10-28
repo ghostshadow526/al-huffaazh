@@ -25,7 +25,7 @@ export default function AboutPage() {
             </div>
             <div>
               <Image 
-                src="https://picsum.photos/seed/about1/600/400"
+                src="https://raw.githubusercontent.com/ghostshadow526/boredape/main/al1.jpg"
                 alt="Students in a classroom"
                 width={600}
                 height={400}
