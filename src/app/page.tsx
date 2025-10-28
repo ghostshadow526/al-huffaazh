@@ -10,6 +10,7 @@ import { collection, query, orderBy, limit } from 'firebase/firestore';
 import { BranchCard } from '@/components/public/BranchCard';
 import Image from 'next/image';
 import Link from 'next/link';
+import { CheckCircle } from 'lucide-react';
 
 interface Branch {
   id: string;
@@ -33,7 +34,68 @@ export default function MotherSitePage() {
     <PublicLayout>
       <HeroSection />
 
-      <section id="branches" className="py-16 md:py-24 bg-gray-50">
+      {/* Our Mission Section */}
+      <section id="mission" className="py-16 md:py-24 bg-white">
+        <div className="container mx-auto px-4 grid md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-4">
+              <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Nurturing Faith & Knowledge</h2>
+              <p className="text-lg text-gray-600 font-body leading-relaxed">
+                Our mission is to provide an exceptional blend of authentic Islamic education and contemporary academic excellence. We are dedicated to cultivating a generation of leaders who are not only successful in their chosen fields but are also deeply rooted in their faith and moral character.
+              </p>
+              <ul className="space-y-2 pt-2">
+                  <li className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-primary" />
+                      <span className="text-gray-700">Holistic Quranic Memorization.</span>
+                  </li>
+                   <li className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-primary" />
+                      <span className="text-gray-700">Excellence in modern academic subjects.</span>
+                  </li>
+                   <li className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 text-primary" />
+                      <span className="text-gray-700">Strong moral and ethical development.</span>
+                  </li>
+              </ul>
+            </div>
+            <div>
+              <Image 
+                src="https://picsum.photos/seed/mission-image/600/500"
+                alt="Students in a classroom"
+                width={600}
+                height={500}
+                className="rounded-2xl shadow-lg"
+                data-ai-hint="students classroom learning"
+              />
+            </div>
+          </div>
+      </section>
+
+      {/* Beyond the Classroom Section */}
+       <section id="excursions" className="py-16 md:py-24 bg-gray-50">
+        <div className="container mx-auto px-4 grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <Image 
+                src="https://picsum.photos/seed/excursion-image/600/500"
+                alt="Students on an excursion"
+                width={600}
+                height={500}
+                className="rounded-2xl shadow-lg"
+                data-ai-hint="students field trip"
+              />
+            </div>
+            <div className="space-y-4 md:text-right">
+              <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Learning Beyond the Classroom</h2>
+              <p className="text-lg text-gray-600 font-body leading-relaxed">
+                Education at Al-Huffaazh Academy extends far beyond the four walls of a classroom. We believe in providing our students with practical, real-world experiences to enrich their learning.
+              </p>
+              <p className="text-gray-600 font-body leading-relaxed">
+                Through regular educational excursions, science fairs, and community service projects, we encourage our students to explore their interests, develop new skills, and understand the practical application of their knowledge, preparing them to be inquisitive and engaged members of society.
+              </p>
+            </div>
+          </div>
+      </section>
+
+      <section id="branches" className="py-16 md:py-24 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Our Branches</h2>
@@ -58,7 +120,7 @@ export default function MotherSitePage() {
         </div>
       </section>
 
-      <section id="gallery" className="py-16 md:py-24 bg-white">
+      <section id="gallery" className="py-16 md:py-24 bg-gray-50">
           <div className="container mx-auto px-4 text-center">
               <div className="mb-12">
                   <h2 className="text-3xl md:text-4xl font-bold font-headline text-primary-deep">Our Gallery</h2>
