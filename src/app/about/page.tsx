@@ -41,7 +41,7 @@ export default function AboutPage() {
           </div>
           <div className="mt-12 flex flex-col md:flex-row items-center justify-center gap-12 bg-gray-50 p-8 md:p-12 rounded-2xl">
                 <Image
-                    src="https://picsum.photos/seed/director/400/400"
+                    src="https://raw.githubusercontent.com/ghostshadow526/boredape/main/1761674167099.jpg"
                     alt="Dr. Muhyiddeen Ibraheem Solahuddeen"
                     width={250}
                     height={250}
@@ -61,4 +61,3 @@ export default function AboutPage() {
     </PublicLayout>
   );
 }
-
