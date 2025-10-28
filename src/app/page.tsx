@@ -59,7 +59,7 @@ export default function MotherSitePage() {
             </div>
             <div>
               <Image 
-                src="https://picsum.photos/seed/mission-image/600/500"
+                src="https://raw.githubusercontent.com/ghostshadow526/boredape/main/al2.jpg"
                 alt="Students in a classroom"
                 width={600}
                 height={500}
@@ -75,7 +75,7 @@ export default function MotherSitePage() {
         <div className="container mx-auto px-4 grid md:grid-cols-2 gap-12 items-center">
             <div>
               <Image 
-                src="https://picsum.photos/seed/excursion-image/600/500"
+                src="https://raw.githubusercontent.com/ghostshadow526/boredape/main/al3.jpg"
                 alt="Students on an excursion"
                 width={600}
                 height={500}
