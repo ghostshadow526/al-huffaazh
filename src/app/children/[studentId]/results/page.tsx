@@ -4,7 +4,7 @@
 import { useParams, notFound } from 'next/navigation';
 import { useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import { collection, query, where, doc, getDoc, orderBy } from 'firebase/firestore';
-import type { Student } from '@/app/(app)/students/student-table';
+import type { Student } from '@/app/students/student-table';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEffect, useState, useMemo } from 'react';
