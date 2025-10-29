@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState } from 'react';
@@ -18,7 +17,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
 import { CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { errorEmitter, FirestorePermissionError } from '@/firebase';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 interface Receipt {
   id: string;
@@ -78,7 +78,7 @@ export default function AdminTransactionsPage() {
     const batch = writeBatch(firestore);
 
     const approvalUpdate = {
-        status: 'approved',
+        status: 'approved' as const,
         verifiedBy: user.uid,
     };
     batch.update(receiptDocRef, approvalUpdate);
@@ -124,7 +124,7 @@ export default function AdminTransactionsPage() {
     const batch = writeBatch(firestore);
 
     const rejectionUpdate = {
-        status: 'rejected',
+        status: 'rejected' as const,
         rejectionReason: rejectionReason,
         verifiedBy: user.uid,
     };
@@ -233,12 +233,10 @@ export default function AdminTransactionsPage() {
                             </Button>
                             {t.status === 'pending' && (
                                 <>
-                                  {user?.role === 'super_admin' && (
-                                     <Button size="sm" onClick={() => handleApprove(t)} className="bg-green-600 hover:bg-green-700" disabled={isProcessing}>
-                                        {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        Approve
-                                    </Button>
-                                  )}
+                                  <Button size="sm" onClick={() => handleApprove(t)} className="bg-green-600 hover:bg-green-700" disabled={isProcessing}>
+                                    {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Approve
+                                  </Button>
                                   <Button size="sm" variant="destructive" onClick={() => openRejectDialog(t)} disabled={isProcessing}>Reject</Button>
                                 </>
                             )}
@@ -287,3 +285,5 @@ export default function AdminTransactionsPage() {
     </Card>
   );
 }
+
+    
