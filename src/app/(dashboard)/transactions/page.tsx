@@ -25,6 +25,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Loader2, Banknote, UploadCloud, Clock, CheckCircle, XCircle } from 'lucide-react';
 import type { Student } from '../students/student-table';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const receiptSchema = z.object({
   studentId: z.string().min(1, 'Please select a child.'),
@@ -69,7 +71,7 @@ export default function ParentTransactionsPage() {
 
   const receiptsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
-    return query(collection(firestore, 'receipts'), where('parentUserId', '==', user.uid), where('status', '!=', 'archived'));
+    return query(collection(firestore, 'receipts'), where('parentUserId', '==', user.uid));
   }, [user, firestore]);
   const { data: receipts, isLoading: receiptsLoading } = useCollection<Receipt>(receiptsQuery);
 
@@ -106,24 +108,30 @@ export default function ParentTransactionsPage() {
     if (!selectedChild) return;
 
     setIsSubmitting(true);
-    try {
-      await addDoc(collection(firestore, 'receipts'), {
+    const newReceipt = {
         ...values,
         parentUserId: user.uid,
         parentEmail: user.email,
         studentName: selectedChild.fullName,
         branchId: selectedChild.branchId,
-        status: 'pending',
+        status: 'pending' as const,
         uploadedAt: serverTimestamp(),
-      });
-      toast({ title: 'Receipt Submitted', description: 'Your payment is now pending verification.' });
-      form.reset();
-      setPhotoUrl('');
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Submission Failed', description: error.message });
-    } finally {
+      };
+
+    addDoc(collection(firestore, 'receipts'), newReceipt).then(() => {
+        toast({ title: 'Receipt Submitted', description: 'Your payment is now pending verification.' });
+        form.reset();
+        setPhotoUrl('');
+    }).catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'receipts',
+          operation: 'create',
+          requestResourceData: newReceipt,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }).finally(() => {
       setIsSubmitting(false);
-    }
+    });
   };
 
   const getStatusBadge = (status: Receipt['status']) => {
