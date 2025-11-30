@@ -123,7 +123,7 @@ service cloud.firestore {
      */
     match /notifications/{notificationId} {
       allow get, update, delete: if isSignedIn() && isNotificationForUser(notificationId);
-      allow list: if isSignedIn() && request.auth.uid == request.query.where.userId;
+      allow list: if isSignedIn() && request.query.get('where.userId') == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
