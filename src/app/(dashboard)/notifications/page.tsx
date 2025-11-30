@@ -34,7 +34,8 @@ export default function NotificationsPage() {
   const { toast } = useToast();
 
   const notificationsQuery = useMemoFirebase(() => {
-    if (!user || !firestore || !user.uid) return null;
+    // Ensure user and user.uid are available before creating the query
+    if (!user?.uid || !firestore) return null;
     return query(
       collection(firestore, 'notifications'),
       where('userId', '==', user.uid),
