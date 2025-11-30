@@ -3,42 +3,23 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import QrScanner from 'qr-scanner';
-import { type Student } from '@/app/(dashboard)/students/student-table';
-import { doc, getDoc, Firestore } from 'firebase/firestore';
-import { Button } from './ui/button';
-import { useFirestore } from '@/firebase';
 import { Loader2 } from 'lucide-react';
 
 interface QRAttendanceScannerProps {
-  onScanSuccess: (student: Student) => void;
+  onScanSuccess: (studentId: string) => void;
   onScanError: (message: string) => void;
   isProcessing: boolean;
 }
 
-const findStudentByQR = async (qrValue: string, firestore: Firestore | null): Promise<Student | null> => {
-  if (!firestore) {
-    throw new Error("Firestore is not initialized.");
-  }
-  
-  let studentId = '';
+const getStudentIdFromQR = (qrValue: string): string | null => {
   try {
     const url = new URL(qrValue);
     const pathParts = url.pathname.split('/');
-    studentId = pathParts[pathParts.length - 1];
+    const studentId = pathParts[pathParts.length - 1];
+    return studentId || null;
   } catch (e) {
     // If it's not a full URL, assume the QR code just contains the studentId
-    studentId = qrValue;
-  }
-
-  if (!studentId) return null;
-
-  const studentDocRef = doc(firestore, 'students', studentId);
-  const studentDocSnap = await getDoc(studentDocRef);
-
-  if (studentDocSnap.exists()) {
-    return { id: studentDocSnap.id, ...studentDocSnap.data() } as Student;
-  } else {
-    return null;
+    return qrValue.trim() || null;
   }
 };
 
@@ -46,40 +27,44 @@ const findStudentByQR = async (qrValue: string, firestore: Firestore | null): Pr
 const QRAttendanceScanner: React.FC<QRAttendanceScannerProps> = ({ onScanSuccess, onScanError, isProcessing }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hasCamera, setHasCamera] = useState<boolean>(true);
-  const [error, setError] = useState('');
-  const [scanner, setScanner] = useState<QrScanner | null>(null);
-  const firestore = useFirestore();
 
   useEffect(() => {
     const videoElem = videoRef.current;
     if (!videoElem) return;
 
-    const qrScanner = new QrScanner(
+    let qrScanner: QrScanner | null = new QrScanner(
       videoElem,
       async (result) => {
         if (isProcessing) return;
-        qrScanner.pause();
+        
+        qrScanner?.pause();
         try {
-          const student = await findStudentByQR(result.data, firestore);
-          if (student) {
-            onScanSuccess(student);
+          const studentId = getStudentIdFromQR(result.data);
+          if (studentId) {
+            onScanSuccess(studentId);
           } else {
-            onScanError('Student not found for this QR code.');
+            onScanError('QR code is not a valid student ID.');
           }
         } catch (e: any) {
           onScanError(e.message || 'Error processing QR code');
-        } finally {
-          // Add a short delay before resuming to prevent rapid-fire scans
-          setTimeout(() => qrScanner.start(), 2000);
-        }
+        } 
       },
       {
         highlightScanRegion: true,
         highlightCodeOutline: true,
       }
     );
-    setScanner(qrScanner);
     
+    // Resume scanning only if not processing
+    const intervalId = setInterval(() => {
+        if (!isProcessing && qrScanner?.isPaused()) {
+            qrScanner.start().catch(err => {
+                setHasCamera(false);
+                onScanError(err.message || "Could not start camera.");
+            });
+        }
+    }, 2500);
+
     qrScanner.start().catch(err => {
         setHasCamera(false);
         onScanError(err.message || "Could not start camera.");
@@ -88,11 +73,12 @@ const QRAttendanceScanner: React.FC<QRAttendanceScannerProps> = ({ onScanSuccess
     QrScanner.hasCamera().then(setHasCamera);
     
     return () => {
+      clearInterval(intervalId);
       qrScanner?.destroy();
-      setScanner(null);
+      qrScanner = null;
     };
      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firestore, isProcessing]);
+  }, [isProcessing]);
 
 
   return (
@@ -108,7 +94,7 @@ const QRAttendanceScanner: React.FC<QRAttendanceScannerProps> = ({ onScanSuccess
           {!isProcessing && hasCamera && (
              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <div className="w-2/3 h-2/3 border-4 border-primary/50 rounded-lg shadow-lg"></div>
-              <p className="mt-4 text-sm text-primary-foreground bg-black/50 px-2 py-1 rounded-md">
+              <p className="mt-4 text-sm text-white bg-black/50 px-2 py-1 rounded-md">
                 Position QR code within the frame
               </p>
             </div>

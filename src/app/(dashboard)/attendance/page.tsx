@@ -6,10 +6,9 @@ import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle } from 'lucide-react';
-import { doc, serverTimestamp, setDoc, collection, query, where } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc, collection, query, where, getDoc } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import type { Student } from '../students/student-table';
 import QRAttendanceScanner from '@/components/QRAttendanceScanner';
@@ -42,7 +41,6 @@ export default function AttendancePage() {
   const [lastMarkedStudent, setLastMarkedStudent] = useState<Student | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Fetch students for manual attendance
   const studentsQuery = useMemoFirebase(() => {
     if (!user || !firestore || !user.uid) return null;
     if (user.role === 'super_admin') {
@@ -56,20 +54,23 @@ export default function AttendancePage() {
 
   const { data: students, isLoading: studentsLoading } = useCollection<Student>(studentsQuery);
 
-  const markStudentAsPresent = async (student: Student) => {
-    if (!student || !user || !user.branchId || !firestore) {
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Cannot mark attendance. User or student data is missing.',
-        });
+  const markStudentAsPresent = async (studentId: string) => {
+    if (isProcessing || !user || !firestore) {
         return;
     }
     
     setIsProcessing(true);
-    setLastMarkedStudent(null); // Clear previous student
+    setLastMarkedStudent(null);
 
     try {
+        const studentDocRef = doc(firestore, 'students', studentId);
+        const studentDocSnap = await getDoc(studentDocRef);
+
+        if (!studentDocSnap.exists()) {
+          throw new Error("Student data not found.");
+        }
+        const student = { id: studentDocSnap.id, ...studentDocSnap.data() } as Student;
+        
         const today = new Date();
         const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
         const timeString = today.toTimeString().split(' ')[0]; // HH:MM:SS
@@ -89,7 +90,7 @@ export default function AttendancePage() {
             timestamp: serverTimestamp(),
         }, { merge: true });
 
-        setLastMarkedStudent(student); // Show who was just marked
+        setLastMarkedStudent(student);
         toast({
             title: 'Attendance Marked',
             description: `${student.fullName} marked as present for ${format(today, 'PPPP')}.`,
@@ -102,30 +103,21 @@ export default function AttendancePage() {
             description: error.message,
         });
     } finally {
-        setIsProcessing(false);
+        setTimeout(() => setIsProcessing(false), 2000); // Prevent rapid re-scans
     }
   };
 
 
-  const handleScanSuccess = (student: Student) => {
-    markStudentAsPresent(student);
+  const handleScanSuccess = (studentId: string) => {
+    markStudentAsPresent(studentId);
   };
 
   const handleManualSelect = (studentId: string) => {
-    const student = students?.find(s => s.id === studentId);
-    if (student) {
-        markStudentAsPresent(student);
-    } else {
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Could not find the selected student.'
-        })
-    }
+    markStudentAsPresent(studentId);
   };
 
-
   const handleScanError = (message: string) => {
+    if (isProcessing) return;
     if (message.includes('permission') || message.includes('camera')) {
         toast({
             variant: 'destructive',
