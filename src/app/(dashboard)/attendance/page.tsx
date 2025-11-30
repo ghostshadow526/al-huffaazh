@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState } from 'react';
@@ -42,7 +41,6 @@ export default function AttendancePage() {
   const { toast } = useToast();
   const [lastMarkedStudent, setLastMarkedStudent] = useState<Student | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showScanner, setShowScanner] = useState(true);
 
   // Fetch students for manual attendance
   const studentsQuery = useMemoFirebase(() => {
@@ -69,8 +67,7 @@ export default function AttendancePage() {
     }
     
     setIsProcessing(true);
-    setLastMarkedStudent(student); // Show who was just marked
-    setShowScanner(false); // Hide scanner after scan
+    setLastMarkedStudent(null); // Clear previous student
 
     try {
         const today = new Date();
@@ -92,6 +89,7 @@ export default function AttendancePage() {
             timestamp: serverTimestamp(),
         }, { merge: true });
 
+        setLastMarkedStudent(student); // Show who was just marked
         toast({
             title: 'Attendance Marked',
             description: `${student.fullName} marked as present for ${format(today, 'PPPP')}.`,
@@ -103,10 +101,8 @@ export default function AttendancePage() {
             title: 'Failed to Mark Attendance',
             description: error.message,
         });
-         setShowScanner(true); // Show scanner again on error
     } finally {
         setIsProcessing(false);
-        // Don't reset immediately, show the confirmation
     }
   };
 
@@ -119,6 +115,12 @@ export default function AttendancePage() {
     const student = students?.find(s => s.id === studentId);
     if (student) {
         markStudentAsPresent(student);
+    } else {
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Could not find the selected student.'
+        })
     }
   };
 
@@ -137,13 +139,6 @@ export default function AttendancePage() {
             description: message,
         });
     }
-  }
-
-
-  const resetScanner = () => {
-    setLastMarkedStudent(null);
-    setIsProcessing(false);
-    setShowScanner(true);
   }
 
   return (
@@ -167,20 +162,11 @@ export default function AttendancePage() {
                   <CardTitle>QR Code Scanner</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center gap-4">
-                   {showScanner ? (
-                        <QRAttendanceScanner 
-                            onScanSuccess={handleScanSuccess} 
-                            onScanError={handleScanError} 
-                        />
-                    ) : (
-                        <div className="flex items-center justify-center p-8 text-center text-muted-foreground w-full max-w-sm aspect-square">
-                           {isProcessing ? (
-                               <Loader2 className="h-16 w-16 animate-spin text-primary" />
-                           ) : (
-                               <span>Attendance marked. Select another student below.</span>
-                           )}
-                        </div>
-                    )}
+                    <QRAttendanceScanner 
+                        onScanSuccess={handleScanSuccess} 
+                        onScanError={handleScanError} 
+                        isProcessing={isProcessing}
+                    />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -190,26 +176,24 @@ export default function AttendancePage() {
                   <CardTitle>Manual Attendance</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center gap-4">
-                  {showScanner ? (
-                        <ManualAttendanceForm 
-                            onStudentSelect={handleManualSelect} 
-                            students={students || []}
-                            isLoading={studentsLoading}
-                        />
-                    ) : (
-                         <div className="flex items-center justify-center p-8 text-center text-muted-foreground w-full">
-                           {isProcessing ? (
-                               <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                           ) : (
-                               <span>Attendance marked. Select another student below.</span>
-                           )}
-                        </div>
-                    )}
+                    <ManualAttendanceForm 
+                        onStudentSelect={handleManualSelect} 
+                        students={students || []}
+                        isLoading={studentsLoading || isProcessing}
+                    />
                 </CardContent>
               </Card>
             </TabsContent>
+          </Tabs>
 
-            {lastMarkedStudent && !showScanner && (
+           {isProcessing && (
+                <div className="text-center space-y-4 mt-6 flex justify-center items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Processing attendance...</span>
+                </div>
+            )}
+            
+            {lastMarkedStudent && !isProcessing && (
               <div className="text-center space-y-4 mt-6">
                   <Alert variant="default" className="bg-green-50 border-green-200">
                       <CheckCircle className="h-5 w-5 text-green-600" />
@@ -219,12 +203,9 @@ export default function AttendancePage() {
                           Admission No: {lastMarkedStudent.admissionNo}
                       </AlertDescription>
                   </Alert>
-                  <div className='flex gap-2 justify-center'>
-                      <Button variant="outline" onClick={resetScanner}>Mark Another Student</Button>
-                  </div>
+                  <p className="text-sm text-muted-foreground">You can now mark another student.</p>
               </div>
             )}
-          </Tabs>
         </CardContent>
       </Card>
     </div>
