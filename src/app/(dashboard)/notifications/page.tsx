@@ -111,7 +111,7 @@ export default function NotificationsPage() {
                   <div className="flex-1 space-y-1">
                      <Link href={notif.link} className="font-semibold hover:underline">{notif.message}</Link>
                     <p className="text-sm text-muted-foreground">
-                      {formatDistanceToNow(new Date(notif.createdAt.seconds * 1000), { addSuffix: true })}
+                      {notif.createdAt ? formatDistanceToNow(new Date(notif.createdAt.seconds * 1000), { addSuffix: true }) : 'just now'}
                     </p>
                   </div>
                 </div>
