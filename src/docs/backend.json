@@ -265,24 +265,41 @@
         "subjectName": { "type": "string", "description": "Denormalized subject name for display." },
         "branchId": { "type": "string" },
         "marks": { "type": "number", "minimum": 0, "maximum": 100 },
+        "grade": { "type": "string", "description": "The grade achieved (e.g., A, B, C)." },
         "recordedBy": { "type": "string", "description": "Reference to the User (teacher) who recorded the result." },
         "recordedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["studentId", "termId", "subjectId", "branchId", "marks", "recordedBy", "recordedAt", "studentName", "termName", "subjectName"]
     },
-    "Notification": {
+    "ReportCard": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "ReportCard",
+        "type": "object",
+        "description": "Represents an uploaded result sheet or report card.",
+        "properties": {
+          "studentId": { "type": "string" },
+          "studentName": { "type": "string" },
+          "termId": { "type": "string" },
+          "branchId": { "type": "string" },
+          "imageUrl": { "type": "string", "format": "uri" },
+          "uploadedBy": { "type": "string" },
+          "uploadedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["studentId", "termId", "branchId", "imageUrl", "uploadedBy", "uploadedAt"]
+    },
+    "GalleryImage": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Notification",
+      "title": "GalleryImage",
       "type": "object",
-      "description": "Represents a notification for a user.",
+      "description": "Represents an image in a branch's gallery.",
       "properties": {
-        "userId": { "type": "string", "description": "The ID of the user to notify." },
-        "message": { "type": "string", "description": "The notification message." },
-        "link": { "type": "string", "description": "A URL link related to the notification." },
-        "read": { "type": "boolean", "description": "Whether the notification has been read." },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the notification was created."}
+        "branchId": { "type": "string", "description": "The ID of the branch this image belongs to." },
+        "imageUrl": { "type": "string", "format": "uri", "description": "The URL of the image stored in ImageKit." },
+        "caption": { "type": "string", "description": "An optional caption for the image." },
+        "uploadedAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the image was uploaded." },
+        "uploadedBy": { "type": "string", "description": "The ID of the user who uploaded the image." }
       },
-      "required": ["userId", "message", "link", "read", "createdAt"]
+      "required": ["branchId", "imageUrl", "uploadedAt", "uploadedBy"]
     }
   },
   "auth": {
@@ -365,15 +382,20 @@
           "description": "Stores student results for each subject and term. The ID is a composite of studentId, termId, and subjectId."
         }
       },
-       {
-        "path": "/notifications/{notificationId}",
+      {
+        "path": "/reportCards/{cardId}",
         "definition": {
-          "schema": { "$ref": "#/entities/Notification" },
-          "description": "Stores notifications for users."
+          "schema": { "$ref": "#/entities/ReportCard" },
+          "description": "Stores uploaded result sheets/report cards."
+        }
+      },
+      {
+        "path": "/gallery/{imageId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/GalleryImage" },
+          "description": "Stores images for public branch galleries."
         }
       }
     ]
   }
 }
-
-    

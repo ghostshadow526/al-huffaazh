@@ -15,6 +15,7 @@
  * - /subjects/{subjectId}: Stores a list of subjects, publicly readable.
  * - /terms/{termId}: Stores school terms, publicly readable.
  * - /results/{resultId}: Stores student results, accessible to teachers and parents.
+ * - /reportCards/{cardId}: Stores uploaded result sheets, readable by relevant staff and parents.
  * - /gallery/{imageId}: Stores gallery images, publicly readable.
  *
  * Key Security Decisions:
@@ -42,7 +43,7 @@ service cloud.firestore {
      */
     match /users/{userId} {
       allow get: if isSignedIn() && (isOwner(userId) || isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/users/$(userId)).data.branchId == request.auth.token.branchId));
-      allow list: if false;
+      allow list: if isSignedIn() && (isSuperAdmin() || isBranchAdmin());
       allow create: if isSignedIn() && isOwner(userId);
       allow update, delete: if isSignedIn() && (isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/users/$(userId)).data.branchId == request.auth.token.branchId));
     }
@@ -83,17 +84,17 @@ service cloud.firestore {
      */
     match /attendance/{attendanceId} {
       allow get, list: if isSignedIn() && ((isTeacher() && request.auth.token.branchId == get(/databases/$(database)/documents/attendance/$(attendanceId)).data.branchId) || isSuperAdmin());
-      allow create, update: if isSignedIn() && ((isTeacher() && request.auth.token.branchId == request.resource.data.branchId) || isSuperAdmin());
+      allow create, update: if isSignedIn() && ((isTeacher() && request.resource.data.branchId == request.auth.token.branchId) || isSuperAdmin());
       allow delete: if isSignedIn() && isSuperAdmin();
     }
 
     /**
-     * @description Allows anyone to read the list of subjects. Write operations are not allowed.
+     * @description Allows anyone to read the list of subjects. Write operations are allowed for admins and teachers.
      * @path /subjects/{subjectId}
      */
     match /subjects/{subjectId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if isSignedIn() && (isSuperAdmin() || isBranchAdmin() || isTeacher());
     }
 
     /**
@@ -110,10 +111,20 @@ service cloud.firestore {
      * @path /results/{resultId}
      */
     match /results/{resultId} {
-      allow get, list: if isSignedIn() && (isOwnerOfResult(resultId) || isParentOfStudentInResult(resultId) || isSuperAdmin());
+      allow get, list: if isSignedIn() && (isOwnerOfResult(resultId) || isParentOfStudentInResult(resultId) || isSuperAdmin() || isTeacherInBranchOfResult(resultId));
       allow create: if isSignedIn() && (isTeacher() && request.resource.data.recordedBy == request.auth.uid || isSuperAdmin());
       allow update: if isSignedIn() && (isOwnerOfResult(resultId) || isSuperAdmin());
       allow delete: if isSignedIn() && isSuperAdmin();
+    }
+
+    /**
+     * @description Allows teachers to create and view report cards. Parents can view their own child's report cards.
+     * @path /reportCards/{cardId}
+     */
+    match /reportCards/{cardId} {
+        allow create: if isSignedIn() && (isTeacher() || isBranchAdmin() || isSuperAdmin());
+        allow get, list: if isSignedIn() && (isSuperAdmin() || isBranchAdmin() || isTeacher() || isParentOfStudentInReportCard(cardId));
+        allow update, delete: if isSignedIn() && (isSuperAdmin() || isBranchAdmin());
     }
 
     /**
@@ -122,7 +133,7 @@ service cloud.firestore {
      */
     match /gallery/{imageId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update, delete: if isSignedIn() && (isSuperAdmin() || isBranchAdmin());
     }
   }
 
@@ -145,7 +156,7 @@ service cloud.firestore {
   }
 
   function isTeacher() {
-        return isSignedIn() && request.auth.token.role == 'teacher';
+    return isSignedIn() && request.auth.token.role == 'teacher';
   }
 
   function isParentOfStudent(studentId) {
@@ -159,8 +170,16 @@ service cloud.firestore {
   function isParentOfStudentInResult(resultId) {
      return isSignedIn() && get(/databases/$(database)/documents/results/$(resultId)).data.studentId != null && get(/databases/$(database)/documents/students/$(get(/databases/$(database)/documents/results/$(resultId)).data.studentId)).data.parentUserId == request.auth.uid;
   }
+  
+  function isParentOfStudentInReportCard(cardId) {
+     return isSignedIn() && get(/databases/$(database)/documents/reportCards/$(cardId)).data.studentId != null && get(/databases/$(database)/documents/students/$(get(/databases/$(database)/documents/reportCards/$(cardId)).data.studentId)).data.parentUserId == request.auth.uid;
+  }
 
     function isOwnerOfResult(resultId) {
     return isSignedIn() && get(/databases/$(database)/documents/results/$(resultId)).data.recordedBy == request.auth.uid;
+  }
+  
+  function isTeacherInBranchOfResult(resultId) {
+    return isTeacher() && get(/databases/$(database)/documents/results/$(resultId)).data.branchId == request.auth.token.branchId;
   }
 }
