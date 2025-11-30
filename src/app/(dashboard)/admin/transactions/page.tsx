@@ -222,7 +222,7 @@ export default function AdminTransactionsPage() {
                       <div className="font-medium">{t.studentName}</div>
                       <div className="text-sm text-muted-foreground">{t.branchId}</div>
                     </TableCell>
-                    <TableCell>{t.amount.toLocaleString()}</TableCell>
+                    <TableCell>{(t.amount || 0).toLocaleString()}</TableCell>
                     <TableCell>{t.reason}</TableCell>
                     <TableCell>{t.uploadedAt ? formatDistanceToNow(new Date(t.uploadedAt.seconds * 1000), { addSuffix: true }) : 'N/A'}</TableCell>
                     <TableCell>{getStatusBadge(t.status)}</TableCell>
@@ -285,5 +285,3 @@ export default function AdminTransactionsPage() {
     </Card>
   );
 }
-
-    
