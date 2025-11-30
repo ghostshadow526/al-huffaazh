@@ -270,20 +270,6 @@
       },
       "required": ["studentId", "termId", "subjectId", "branchId", "marks", "recordedBy", "recordedAt", "studentName", "termName", "subjectName"]
     },
-    "Notification": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Notification",
-      "type": "object",
-      "description": "Represents a notification for a user.",
-      "properties": {
-        "userId": { "type": "string", "description": "The ID of the user to notify." },
-        "message": { "type": "string", "description": "The notification message." },
-        "link": { "type": "string", "description": "A URL link related to the notification." },
-        "read": { "type": "boolean", "description": "Whether the notification has been read." },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the notification was created."}
-      },
-      "required": ["userId", "message", "link", "read", "createdAt"]
-    },
     "GalleryImage": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "GalleryImage",
@@ -377,13 +363,6 @@
         "definition": {
           "schema": { "$ref": "#/entities/Result" },
           "description": "Stores student results for each subject and term. The ID is a composite of studentId, termId, and subjectId."
-        }
-      },
-       {
-        "path": "/notifications/{notificationId}",
-        "definition": {
-          "schema": { "$ref": "#/entities/Notification" },
-          "description": "Stores notifications for users."
         }
       },
       {

@@ -47,7 +47,6 @@ function getInitials(name?: string | null) {
 const navItems: { href: string; label: string; icon: LucideIcon; roles: UserRole[] }[] = [
     { href: "/dashboard", label: "Dashboard", icon: Home, roles: ['super_admin', 'branch_admin', 'teacher', 'parent'] },
     { href: "/profile", label: "My Profile", icon: UserProfileIcon, roles: ['super_admin', 'branch_admin', 'teacher', 'parent'] },
-    { href: "/notifications", label: "Notifications", icon: Bell, roles: ['super_admin', 'branch_admin', 'teacher', 'parent'] },
     { href: "/manage-students", label: "Manage Students", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/search-students", label: "Search Students", icon: Search, roles: ['super_admin', 'branch_admin'] },
     { href: "/attendance", label: "Attendance", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
@@ -133,5 +132,3 @@ export default function DashboardLayout({ user, children }: { user: User; childr
     </SidebarProvider>
   );
 }
-
-    

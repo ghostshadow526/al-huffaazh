@@ -15,7 +15,6 @@
  * - /subjects/{subjectId}: Stores a list of subjects, publicly readable.
  * - /terms/{termId}: Stores school terms, publicly readable.
  * - /results/{resultId}: Stores student results, accessible to teachers and parents.
- * - /notifications/{notificationId}: Stores notifications, accessible to the user the notification is for.
  * - /gallery/{imageId}: Stores gallery images, publicly readable.
  *
  * Key Security Decisions:
@@ -118,16 +117,6 @@ service cloud.firestore {
     }
 
     /**
-     * @description Allows a user to only access their own notifications.
-     * @path /notifications/{notificationId}
-     */
-    match /notifications/{notificationId} {
-      allow get, update, delete: if isSignedIn() && isNotificationForUser(notificationId);
-      allow list: if isSignedIn() && request.query.get('where.userId') == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-    }
-
-    /**
      * @description Allows anyone to read the gallery images. Write operations are not allowed.
      * @path /gallery/{imageId}
      */
@@ -173,9 +162,5 @@ service cloud.firestore {
 
     function isOwnerOfResult(resultId) {
     return isSignedIn() && get(/databases/$(database)/documents/results/$(resultId)).data.recordedBy == request.auth.uid;
-  }
-
-  function isNotificationForUser(notificationId) {
-    return isSignedIn() && get(/databases/$(database)/documents/notifications/$(notificationId)).data.userId == request.auth.uid;
   }
 }

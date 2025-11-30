@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, query, where, doc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, doc, updateDoc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -73,25 +73,13 @@ export default function AdminTransactionsPage() {
     setIsProcessing(true);
 
     const receiptDocRef = doc(firestore, 'receipts', receipt.id);
-    const notificationDocRef = doc(collection(firestore, 'notifications'));
     
-    const batch = writeBatch(firestore);
-
     const approvalUpdate = {
         status: 'approved' as const,
         verifiedBy: user.uid,
     };
-    batch.update(receiptDocRef, approvalUpdate);
 
-    batch.set(notificationDocRef, {
-        userId: receipt.parentUserId,
-        message: `Your payment of ₦${receipt.amount.toLocaleString()} for ${receipt.studentName} has been approved.`,
-        link: `/transactions`,
-        read: false,
-        createdAt: new Date(),
-    });
-
-    batch.commit().then(() => {
+    updateDoc(receiptDocRef, approvalUpdate).then(() => {
         toast({ title: 'Receipt Approved', description: 'The parent has been notified.'});
     }).catch((serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -119,26 +107,14 @@ export default function AdminTransactionsPage() {
     setIsProcessing(true);
 
     const receiptDocRef = doc(firestore, 'receipts', selectedReceipt.id);
-    const notificationDocRef = doc(collection(firestore, 'notifications'));
-
-    const batch = writeBatch(firestore);
 
     const rejectionUpdate = {
         status: 'rejected' as const,
         rejectionReason: rejectionReason,
         verifiedBy: user.uid,
     };
-    batch.update(receiptDocRef, rejectionUpdate);
     
-    batch.set(notificationDocRef, {
-        userId: selectedReceipt.parentUserId,
-        message: `Your payment for ${selectedReceipt.studentName} was rejected. Reason: ${rejectionReason}`,
-        link: `/transactions`,
-        read: false,
-        createdAt: new Date(),
-    });
-
-    batch.commit().then(() => {
+    updateDoc(receiptDocRef, rejectionUpdate).then(() => {
         toast({ title: 'Receipt Rejected', description: 'The parent has been notified.' });
         setIsRejectDialogOpen(false);
         setRejectionReason('');
