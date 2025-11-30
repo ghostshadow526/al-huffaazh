@@ -9,12 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle } from 'lucide-react';
 import { doc, serverTimestamp, setDoc, collection, query, where } from 'firebase/firestore';
 import { useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import type { Student } from '../students/student-table';
 import QRAttendanceScanner from '@/components/QRAttendanceScanner';
 import { Combobox } from '@/components/ui/combobox';
+import { format } from 'date-fns';
 
 function ManualAttendanceForm({ onStudentSelect, students, isLoading }: { onStudentSelect: (studentId: string) => void, students: Student[], isLoading: boolean }) {
     const studentOptions = students.map(s => ({ value: s.id, label: `${s.fullName} (${s.admissionNo})` }));
@@ -39,7 +40,7 @@ export default function AttendancePage() {
   const { user } = useAuth();
   const firestore = useFirestore();
   const { toast } = useToast();
-  const [scannedStudent, setScannedStudent] = useState<Student | null>(null);
+  const [lastMarkedStudent, setLastMarkedStudent] = useState<Student | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showScanner, setShowScanner] = useState(true);
 
@@ -57,23 +58,67 @@ export default function AttendancePage() {
 
   const { data: students, isLoading: studentsLoading } = useCollection<Student>(studentsQuery);
 
-  const processStudent = (student: Student) => {
-    setScannedStudent(student);
-    setShowScanner(false); // Hide scanner/form after selection
-    toast({
-      title: 'Student Selected',
-      description: `Found ${student.fullName}. Please mark as present.`,
-    });
-  }
+  const markStudentAsPresent = async (student: Student) => {
+    if (!student || !user || !user.branchId || !firestore) {
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Cannot mark attendance. User or student data is missing.',
+        });
+        return;
+    }
+    
+    setIsProcessing(true);
+    setLastMarkedStudent(student); // Show who was just marked
+    setShowScanner(false); // Hide scanner after scan
+
+    try {
+        const today = new Date();
+        const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
+        const timeString = today.toTimeString().split(' ')[0]; // HH:MM:SS
+        
+        const attendanceId = `${student.id}_${dateString}`;
+        const attendanceDocRef = doc(firestore, 'attendance', attendanceId);
+
+        await setDoc(attendanceDocRef, {
+            studentId: student.id,
+            studentName: student.fullName,
+            admissionNo: student.admissionNo,
+            branchId: student.branchId,
+            date: dateString,
+            time: timeString,
+            status: 'present',
+            markedBy: user.uid,
+            timestamp: serverTimestamp(),
+        }, { merge: true });
+
+        toast({
+            title: 'Attendance Marked',
+            description: `${student.fullName} marked as present for ${format(today, 'PPPP')}.`,
+        });
+
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Failed to Mark Attendance',
+            description: error.message,
+        });
+         setShowScanner(true); // Show scanner again on error
+    } finally {
+        setIsProcessing(false);
+        // Don't reset immediately, show the confirmation
+    }
+  };
+
 
   const handleScanSuccess = (student: Student) => {
-    processStudent(student);
+    markStudentAsPresent(student);
   };
 
   const handleManualSelect = (studentId: string) => {
     const student = students?.find(s => s.id === studentId);
     if (student) {
-        processStudent(student);
+        markStudentAsPresent(student);
     }
   };
 
@@ -92,53 +137,11 @@ export default function AttendancePage() {
             description: message,
         });
     }
-    resetScanner();
   }
 
 
-  const markAsPresent = async () => {
-    if (!scannedStudent || !user || !user.branchId || !firestore) return;
-    
-    setIsProcessing(true);
-    try {
-        const today = new Date();
-        const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
-        const timeString = today.toTimeString().split(' ')[0]; // HH:MM:SS
-        
-        const attendanceId = `${scannedStudent.id}_${dateString}`;
-        const attendanceDocRef = doc(firestore, 'attendance', attendanceId);
-
-        await setDoc(attendanceDocRef, {
-            studentId: scannedStudent.id,
-            studentName: scannedStudent.fullName,
-            admissionNo: scannedStudent.admissionNo,
-            branchId: scannedStudent.branchId,
-            date: dateString,
-            time: timeString,
-            status: 'present',
-            markedBy: user.uid,
-            timestamp: serverTimestamp(),
-        }, { merge: true });
-
-        toast({
-            title: 'Attendance Marked',
-            description: `${scannedStudent.fullName} marked as present.`,
-        });
-        resetScanner();
-
-    } catch (error: any) {
-        toast({
-            variant: 'destructive',
-            title: 'Failed to Mark Attendance',
-            description: error.message,
-        });
-    } finally {
-        setIsProcessing(false);
-    }
-  };
-
   const resetScanner = () => {
-    setScannedStudent(null);
+    setLastMarkedStudent(null);
     setIsProcessing(false);
     setShowScanner(true);
   }
@@ -149,7 +152,7 @@ export default function AttendancePage() {
         <CardHeader>
           <CardTitle>Mark Attendance</CardTitle>
           <CardDescription>
-            You can mark student attendance by scanning their QR code or manually.
+            Today is {format(new Date(), 'eeee, MMMM do, yyyy')}. You can mark student attendance by scanning their QR code or manually.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -171,7 +174,11 @@ export default function AttendancePage() {
                         />
                     ) : (
                         <div className="flex items-center justify-center p-8 text-center text-muted-foreground w-full max-w-sm aspect-square">
-                           <span>Selection complete. Please see details below.</span>
+                           {isProcessing ? (
+                               <Loader2 className="h-16 w-16 animate-spin text-primary" />
+                           ) : (
+                               <span>Attendance marked. Select another student below.</span>
+                           )}
                         </div>
                     )}
                 </CardContent>
@@ -190,29 +197,30 @@ export default function AttendancePage() {
                             isLoading={studentsLoading}
                         />
                     ) : (
-                        <div className="flex items-center justify-center p-8 text-center text-muted-foreground w-full">
-                           <span>Selection complete. Please see details below.</span>
+                         <div className="flex items-center justify-center p-8 text-center text-muted-foreground w-full">
+                           {isProcessing ? (
+                               <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                           ) : (
+                               <span>Attendance marked. Select another student below.</span>
+                           )}
                         </div>
                     )}
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {scannedStudent && (
+            {lastMarkedStudent && !showScanner && (
               <div className="text-center space-y-4 mt-6">
-                  <Alert>
-                      <AlertTitle>Student Found: {scannedStudent.fullName}</AlertTitle>
-                      <AlertDescription>
-                          Class: {scannedStudent.class} <br/>
-                          Admission No: {scannedStudent.admissionNo}
+                  <Alert variant="default" className="bg-green-50 border-green-200">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <AlertTitle className="text-green-800">Success: {lastMarkedStudent.fullName} Marked Present</AlertTitle>
+                      <AlertDescription className="text-green-700">
+                          Class: {lastMarkedStudent.class} <br/>
+                          Admission No: {lastMarkedStudent.admissionNo}
                       </AlertDescription>
                   </Alert>
                   <div className='flex gap-2 justify-center'>
-                      <Button onClick={markAsPresent} disabled={isProcessing}>
-                          {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Mark as Present
-                      </Button>
-                        <Button variant="outline" onClick={resetScanner}>Select Another</Button>
+                      <Button variant="outline" onClick={resetScanner}>Mark Another Student</Button>
                   </div>
               </div>
             )}
