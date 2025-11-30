@@ -27,16 +27,20 @@ const getStudentIdFromQR = (qrValue: string): string | null => {
 const QRAttendanceScanner: React.FC<QRAttendanceScannerProps> = ({ onScanSuccess, onScanError, isProcessing }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hasCamera, setHasCamera] = useState<boolean>(true);
+  const qrScannerRef = useRef<QrScanner | null>(null);
 
   useEffect(() => {
     const videoElem = videoRef.current;
     if (!videoElem) return;
 
-    let qrScanner: QrScanner | null = new QrScanner(
+    let isScannerPaused = false;
+
+    const qrScanner = new QrScanner(
       videoElem,
       async (result) => {
-        if (isProcessing) return;
+        if (isProcessing || isScannerPaused) return;
         
+        isScannerPaused = true;
         qrScanner?.pause();
         try {
           const studentId = getStudentIdFromQR(result.data);
@@ -55,27 +59,32 @@ const QRAttendanceScanner: React.FC<QRAttendanceScannerProps> = ({ onScanSuccess
       }
     );
     
-    // Resume scanning only if not processing
-    const intervalId = setInterval(() => {
-        if (!isProcessing && qrScanner?.isPaused()) {
-            qrScanner.start().catch(err => {
-                setHasCamera(false);
-                onScanError(err.message || "Could not start camera.");
-            });
-        }
-    }, 2500);
+    qrScannerRef.current = qrScanner;
 
-    qrScanner.start().catch(err => {
-        setHasCamera(false);
-        onScanError(err.message || "Could not start camera.");
-    });
+    const startScanner = () => {
+        qrScanner.start().catch(err => {
+            setHasCamera(false);
+            if (err.name === 'NotAllowedError') {
+                 onScanError("Camera access was denied. Please grant permission in your browser settings.");
+            } else {
+                 onScanError(err.message || "Could not start camera.");
+            }
+        });
+    };
+    
+    startScanner();
     
     QrScanner.hasCamera().then(setHasCamera);
+
+    // This effect runs only when isProcessing changes from true to false
+    if (!isProcessing) {
+        isScannerPaused = false;
+        startScanner(); // Restart scanner when processing is done
+    }
     
     return () => {
-      clearInterval(intervalId);
       qrScanner?.destroy();
-      qrScanner = null;
+      qrScannerRef.current = null;
     };
      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isProcessing]);
@@ -101,8 +110,8 @@ const QRAttendanceScanner: React.FC<QRAttendanceScannerProps> = ({ onScanSuccess
           )}
       </div>
       {!hasCamera && (
-        <p className="text-sm text-destructive">
-          No camera found. Please use a device with a camera or use the manual entry tab.
+        <p className="text-sm text-destructive text-center max-w-xs">
+          Camera not found or access denied. Please use a device with a camera and grant permission, or use the manual entry tab.
         </p>
       )}
     </div>
