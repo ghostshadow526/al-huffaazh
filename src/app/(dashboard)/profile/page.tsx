@@ -2,19 +2,20 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
 import { IKContext, IKUpload } from 'imagekitio-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
+import { Loader2, KeyRound } from 'lucide-react';
 import Image from 'next/image';
+import { resetUserPassword } from '@/app/actions/user-actions';
+import { Separator } from '@/components/ui/separator';
 
 const imageKitAuthenticator = async () => {
     const response = await fetch('/api/imagekit/auth');
@@ -34,6 +35,7 @@ export default function ProfilePage() {
     const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [newPhotoUrl, setNewPhotoUrl] = useState<string | null>(null);
+    const [isResetting, setIsResetting] = useState(false);
     const ikUploadRef = useRef<any>(null);
 
     const onUploadStart = () => {
@@ -90,6 +92,34 @@ export default function ProfilePage() {
             setIsSaving(false);
         }
     };
+    
+    const handlePasswordReset = async () => {
+        if (!user || !user.email) {
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Could not reset password. User email not available.',
+          });
+          return;
+        }
+    
+        setIsResetting(true);
+        try {
+          await resetUserPassword({ email: user.email });
+          toast({
+            title: 'Password Reset Email Sent',
+            description: `A link to reset your password has been sent to ${user.email}. Please check your inbox.`,
+          });
+        } catch (error: any) {
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: error.message || 'Failed to send password reset email.',
+          });
+        } finally {
+          setIsResetting(false);
+        }
+      };
 
     if (authLoading) {
         return <p>Loading profile...</p>;
@@ -145,17 +175,35 @@ export default function ProfilePage() {
                                 overwriteFile={true}
                             />
                         </IKContext>
-                        <Button type="button" variant="outline" onClick={() => ikUploadRef.current?.click()} disabled={isUploading}>
-                           {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                           {isUploading ? 'Uploading...' : 'Choose New Photo'}
-                        </Button>
-                        <p className='text-xs text-muted-foreground'>Upload a new photo. Click Save Changes to apply it.</p>
+                        <div className="flex items-center gap-4">
+                             <Button type="button" variant="outline" onClick={() => ikUploadRef.current?.click()} disabled={isUploading}>
+                                {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {isUploading ? 'Uploading...' : 'Choose New Photo'}
+                            </Button>
+                            <Button onClick={handleSaveChanges} disabled={isSaving || !newPhotoUrl}>
+                                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Save Changes
+                            </Button>
+                        </div>
+                        <p className='text-xs text-muted-foreground'>Upload a new photo, then click Save Changes to apply it.</p>
                     </div>
+                </CardContent>
+            </Card>
 
-                    <div className="flex justify-end">
-                        <Button onClick={handleSaveChanges} disabled={isSaving || !newPhotoUrl}>
-                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save Changes
+            <Card>
+                <CardHeader>
+                    <CardTitle>Account Security</CardTitle>
+                    <CardDescription>Manage your account security settings.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                     <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div>
+                            <p className="font-medium">Reset Password</p>
+                            <p className="text-sm text-muted-foreground">An email will be sent to you with instructions.</p>
+                        </div>
+                        <Button onClick={handlePasswordReset} variant="outline" disabled={isResetting}>
+                            {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Send Reset Link
                         </Button>
                     </div>
                 </CardContent>
@@ -163,3 +211,4 @@ export default function ProfilePage() {
         </div>
     );
 }
+
