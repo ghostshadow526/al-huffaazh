@@ -178,7 +178,7 @@ export default function AddStudentPage() {
         const studentDocRef = doc(db, 'students', studentId);
 
         // 3. Generate QR Code
-        const baseUrl = window.location.origin;
+        const baseUrl = 'https://www.alhuffaazhacademynigerialtd.com';
         const qrResult = await generateUniqueQrCode({ studentId, baseUrl });
         
         // 4. Upload QR Code to ImageKit
