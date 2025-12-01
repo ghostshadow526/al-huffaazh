@@ -173,8 +173,8 @@ export function LoginForm({ role }: { role: Role }) {
                 <FormItem>
                     <div className="flex justify-between items-center">
                         <FormLabel>Password</FormLabel>
-                        <Link href="/forgot-password" passHref legacyBehavior>
-                           <a className="text-sm font-medium text-primary hover:underline">Forgot password?</a>
+                        <Link href="/forgot-password" className="text-sm font-medium text-primary hover:underline">
+                           Forgot password?
                         </Link>
                     </div>
                   <FormControl>
