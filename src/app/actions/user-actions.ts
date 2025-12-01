@@ -23,17 +23,3 @@ export async function deleteUser(payload: { uid: string }): Promise<{ success: b
     throw new Error(error.message || 'Failed to delete user.');
   }
 }
-
-export async function resetUserPassword(payload: { email: string }): Promise<{ success: boolean }> {
-    try {
-      const adminApp = await initializeAdminApp();
-      const auth = getAuth(adminApp);
-      
-      await auth.generatePasswordResetLink(payload.email);
-
-      return { success: true };
-    } catch (error: any) {
-        console.error('Error sending password reset:', error);
-        throw new Error(error.message || 'Failed to send password reset email.');
-    }
-}

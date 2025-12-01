@@ -5,9 +5,9 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { resetUserPassword } from '@/app/actions/user-actions';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 
 import {
   Card,
@@ -38,6 +38,8 @@ export default function ForgotPasswordPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  
+  const auth = getAuth(); // Use client-side auth
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -49,14 +51,14 @@ export default function ForgotPasswordPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      await resetUserPassword({ email: values.email });
+      await sendPasswordResetEmail(auth, values.email);
       setIsSuccess(true);
       toast({
         title: 'Password Reset Email Sent',
         description: `If an account exists for ${values.email}, a reset link has been sent.`,
       });
     } catch (error: any) {
-      // We show a generic message even on error to prevent email enumeration
+      // We show a generic success message to prevent email enumeration, but log the error.
       setIsSuccess(true);
       console.error("Forgot password error:", error.message);
        toast({
