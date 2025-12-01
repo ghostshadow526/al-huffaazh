@@ -35,7 +35,6 @@ export default function ProfilePage() {
     const [isUploading, setIsUploading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [newPhotoUrl, setNewPhotoUrl] = useState<string | null>(null);
-    const [isResetting, setIsResetting] = useState(false);
     const ikUploadRef = useRef<any>(null);
 
     const onUploadStart = () => {
@@ -92,34 +91,6 @@ export default function ProfilePage() {
             setIsSaving(false);
         }
     };
-    
-    const handlePasswordReset = async () => {
-        if (!user || !user.email) {
-          toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Could not reset password. User email not available.',
-          });
-          return;
-        }
-    
-        setIsResetting(true);
-        try {
-          await resetUserPassword({ email: user.email });
-          toast({
-            title: 'Password Reset Email Sent',
-            description: `A link to reset your password has been sent to ${user.email}. Please check your inbox.`,
-          });
-        } catch (error: any) {
-          toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: error.message || 'Failed to send password reset email.',
-          });
-        } finally {
-          setIsResetting(false);
-        }
-      };
 
     if (authLoading) {
         return <p>Loading profile...</p>;
@@ -189,26 +160,6 @@ export default function ProfilePage() {
                     </div>
                 </CardContent>
             </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Account Security</CardTitle>
-                    <CardDescription>Manage your account security settings.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                     <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                            <p className="font-medium">Reset Password</p>
-                            <p className="text-sm text-muted-foreground">An email will be sent to you with instructions.</p>
-                        </div>
-                        <Button onClick={handlePasswordReset} variant="outline" disabled={isResetting}>
-                            {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Send Reset Link
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
         </div>
     );
 }
-

@@ -171,7 +171,12 @@ export function LoginForm({ role }: { role: Role }) {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                    <div className="flex justify-between items-center">
+                        <FormLabel>Password</FormLabel>
+                        <Link href="/forgot-password" passHref legacyBehavior>
+                           <a className="text-sm font-medium text-primary hover:underline">Forgot password?</a>
+                        </Link>
+                    </div>
                   <FormControl>
                     <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>
