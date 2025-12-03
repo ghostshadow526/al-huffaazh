@@ -8,7 +8,7 @@ import { collection, query, where } from 'firebase/firestore';
 import { useAuth, User } from '@/components/auth-provider';
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 
-import { PlusCircle, Trash2, KeyRound } from 'lucide-react';
+import { PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,7 +19,6 @@ import { Label } from '@/components/ui/label';
 export default function UsersPage() {
   const { user } = useAuth();
   const firestore = useFirestore();
-  const [showDisabled, setShowDisabled] = useState(false);
 
   const usersQuery = useMemoFirebase(() => {
     if (!user || !firestore || !user.uid) return null;
@@ -41,16 +40,12 @@ export default function UsersPage() {
 
   const filteredUsers = (roles: string[]) => {
       if (!users) return [];
-      return users.filter(u => {
-        const roleMatch = u.role && roles.includes(u.role);
-        const statusMatch = showDisabled ? true : u.status === 'active';
-        return roleMatch && statusMatch;
-      });
+      return users.filter(u => u.role && roles.includes(u.role));
   }
   
-  const teachers = useMemo(() => filteredUsers(['teacher']), [users, showDisabled]);
-  const parents = useMemo(() => filteredUsers(['parent']), [users, showDisabled]);
-  const admins = useMemo(() => filteredUsers(['branch_admin', 'super_admin']), [users, showDisabled]);
+  const teachers = useMemo(() => filteredUsers(['teacher']), [users]);
+  const parents = useMemo(() => filteredUsers(['parent']), [users]);
+  const admins = useMemo(() => filteredUsers(['branch_admin', 'super_admin']), [users]);
 
   return (
     <div className="space-y-6">
@@ -62,10 +57,6 @@ export default function UsersPage() {
           </p>
         </div>
         <div className="flex items-center space-x-4">
-           <div className="flex items-center space-x-2">
-            <Switch id="show-disabled" checked={showDisabled} onCheckedChange={setShowDisabled} />
-            <Label htmlFor="show-disabled">Show Disabled</Label>
-          </div>
           <Button asChild>
             <Link href="/users/invite">
               <PlusCircle className="mr-2 h-4 w-4" /> Create New User
