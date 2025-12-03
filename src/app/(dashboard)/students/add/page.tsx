@@ -159,6 +159,7 @@ export default function AddStudentPage() {
             email: values.parentEmail,
             role: 'parent',
             branchId: user.branchId,
+            status: 'active',
         });
         
         // 1.5 Store parent credentials temporarily
