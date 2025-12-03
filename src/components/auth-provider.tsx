@@ -13,6 +13,7 @@ export interface User extends FirebaseUser {
   role?: UserRole;
   branchId?: string;
   fullName?: string;
+  status?: 'active' | 'disabled';
 }
 
 interface AuthContextType {
@@ -44,7 +45,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
                 fullName: firebaseUser.displayName || 'Super Admin',
-                role: 'super_admin',
+                role: 'super_admin' as const,
+                status: 'active' as const,
               };
               await setDoc(userDocRef, superAdminUser);
               setUser({ ...firebaseUser, ...superAdminUser });
