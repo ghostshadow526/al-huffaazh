@@ -13,7 +13,7 @@
  * - /receipts/{receiptId}: Stores payment receipts.
  * - /parentCredentials/{userId}: Stores temporary parent credentials.
  * - /attendance/{attendanceId}: Stores student attendance records.
- * - /subjects/{subjectId}: Publicly readable list of subjects.
+- /subjects/{subjectId}: Publicly readable list of subjects.
  * - /terms/{termId}: Publicly readable list of school terms.
  * - /results/{resultId}: Stores student results.
  * - /reportCards/{cardId}: Stores uploaded result sheets.
@@ -71,7 +71,9 @@ service cloud.firestore {
     }
 
     function isParentOfStudentInResult(resultId) {
-       return isParent() && get(/databases/$(database)/documents/results/$(resultId)).data.studentId != null && get(/databases/$(database)/documents/students/$(get(/databases/$(database)/documents/results/$(resultId)).data.studentId)).data.parentUserId == request.auth.uid;
+       let resultDoc = get(/databases/$(database)/documents/results/$(resultId)).data;
+       let studentDoc = get(/databases/$(database)/documents/students/$(resultDoc.studentId)).data;
+       return isParent() && studentDoc.parentUserId == request.auth.uid;
     }
     
     function isParentOfStudentInReportCard(cardId) {
@@ -137,8 +139,8 @@ service cloud.firestore {
     }
 
     match /results/{resultId} {
-        allow get: if isSignedInUserActive();
-        allow list: if isSignedInUserActive();
+        allow get: if isParentOfStudentInResult(resultId) || isOwnerOfResult(resultId) || isSuperAdmin() || (isBranchAdmin() && getUserData(request.auth.uid).branchId == get(/databases/$(database)/documents/results/$(resultId)).data.branchId);
+        allow list: if isParent() || isTeacher() || isBranchAdmin() || isSuperAdmin();
         allow create: if (isTeacher() && request.resource.data.recordedBy == request.auth.uid) || isSuperAdmin();
         allow update: if isOwnerOfResult(resultId) || isSuperAdmin();
         allow delete: if isSuperAdmin();

@@ -543,8 +543,7 @@ function ParentResultsView() {
             const resultsPromises = children.map(async (child) => {
                 const resultsQuery = query(
                     collection(firestore, 'results'),
-                    where('studentId', '==', child.id),
-                    orderBy('recordedAt', 'desc')
+                    where('studentId', '==', child.id)
                 );
                 const querySnapshot = await getDocs(resultsQuery);
                 return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result));
