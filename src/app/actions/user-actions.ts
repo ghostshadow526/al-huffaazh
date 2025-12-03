@@ -5,6 +5,9 @@ import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { initializeAdminApp } from '@/firebase/admin';
 
+// Note: The deleteUser functionality was removed due to persistent server authentication issues.
+// The function is left here as a placeholder for future implementation if the environment is configured.
+/*
 export async function deleteUser(payload: { uid: string }): Promise<{ success: boolean }> {
   try {
     const adminApp = await initializeAdminApp();
@@ -23,3 +26,4 @@ export async function deleteUser(payload: { uid: string }): Promise<{ success: b
     throw new Error(error.message || 'Failed to delete user.');
   }
 }
+*/

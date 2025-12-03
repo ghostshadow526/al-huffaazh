@@ -15,10 +15,8 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth, User } from '@/components/auth-provider';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Trash2, KeyRound } from 'lucide-react';
+import { MoreHorizontal, KeyRound } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { deleteUser } from '@/app/actions/user-actions';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 
 
@@ -61,29 +59,11 @@ export function UserTable({ data, columns, isLoading }: UserTableProps) {
     }
   };
 
-  const handleDeleteUser = async (userToDelete: User) => {
-    try {
-      await deleteUser({ uid: userToDelete.uid });
-      toast({
-        title: 'User Deleted',
-        description: `${userToDelete.fullName || userToDelete.email} has been removed.`,
-      });
-      // The useCollection hook will update the UI automatically
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Deletion Failed',
-        description: error.message || 'Could not delete user.',
-      });
-    }
-  };
-
   const renderCell = (item: User, column: keyof User | 'actions') => {
     if (column === 'actions') {
       const isSelf = currentUser?.uid === item.uid;
       return (
         <div className="text-right">
-          <AlertDialog>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="h-8 w-8 p-0" disabled={isSelf}>
@@ -96,29 +76,8 @@ export function UserTable({ data, columns, isLoading }: UserTableProps) {
                   <KeyRound className="mr-2 h-4 w-4" />
                   <span>Reset Password</span>
                 </DropdownMenuItem>
-                {currentUser?.role === 'super_admin' && (
-                   <AlertDialogTrigger asChild>
-                    <DropdownMenuItem className="text-destructive focus:text-destructive">
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      <span>Delete User</span>
-                    </DropdownMenuItem>
-                   </AlertDialogTrigger>
-                )}
               </DropdownMenuContent>
             </DropdownMenu>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you sure you want to delete this user?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete the account for <span className='font-bold'>{item.fullName || item.email}</span> and remove all associated data.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => handleDeleteUser(item)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       );
     }
