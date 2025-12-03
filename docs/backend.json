@@ -54,12 +54,18 @@
         "branchId": {
           "type": "string",
           "description": "Reference to Branch. Required for all roles except super_admin."
+        },
+        "status": {
+            "type": "string",
+            "description": "The status of the user's account.",
+            "enum": ["active", "disabled"]
         }
       },
       "required": [
         "fullName",
         "email",
-        "role"
+        "role",
+        "status"
       ]
     },
     "Student": {
@@ -265,10 +271,27 @@
         "subjectName": { "type": "string", "description": "Denormalized subject name for display." },
         "branchId": { "type": "string" },
         "marks": { "type": "number", "minimum": 0, "maximum": 100 },
+        "grade": { "type": "string", "description": "The grade achieved (e.g., A, B, C)." },
         "recordedBy": { "type": "string", "description": "Reference to the User (teacher) who recorded the result." },
         "recordedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["studentId", "termId", "subjectId", "branchId", "marks", "recordedBy", "recordedAt", "studentName", "termName", "subjectName"]
+    },
+    "ReportCard": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "ReportCard",
+        "type": "object",
+        "description": "Represents an uploaded result sheet or report card.",
+        "properties": {
+          "studentId": { "type": "string" },
+          "studentName": { "type": "string" },
+          "termId": { "type": "string" },
+          "branchId": { "type": "string" },
+          "imageUrl": { "type": "string", "format": "uri" },
+          "uploadedBy": { "type": "string" },
+          "uploadedAt": { "type": "string", "format": "date-time" }
+        },
+        "required": ["studentId", "termId", "branchId", "imageUrl", "uploadedBy", "uploadedAt"]
     },
     "GalleryImage": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -363,6 +386,13 @@
         "definition": {
           "schema": { "$ref": "#/entities/Result" },
           "description": "Stores student results for each subject and term. The ID is a composite of studentId, termId, and subjectId."
+        }
+      },
+      {
+        "path": "/reportCards/{cardId}",
+        "definition": {
+          "schema": { "$ref": "#/entities/ReportCard" },
+          "description": "Stores uploaded result sheets/report cards."
         }
       },
       {

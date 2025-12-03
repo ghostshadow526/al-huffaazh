@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -12,32 +13,44 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserTable } from './user-table';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 export default function UsersPage() {
   const { user } = useAuth();
   const firestore = useFirestore();
+  const [showDisabled, setShowDisabled] = useState(false);
 
   const usersQuery = useMemoFirebase(() => {
     if (!user || !firestore || !user.uid) return null;
-    if (user.role === 'super_admin') {
-      return collection(firestore, 'users');
-    }
+    let q = collection(firestore, 'users');
+
     if (user.role === 'branch_admin' && user.branchId) {
-      return query(collection(firestore, 'users'), where('branchId', '==', user.branchId));
+      q = query(q, where('branchId', '==', user.branchId));
+    } else if (user.role !== 'super_admin') {
+      // For teachers or other roles, return a query that yields no results
+      // as they should not be able to list users.
+      return query(collection(firestore, 'users'), where('uid', '==', 'nonexistent'));
     }
-    return null;
+    
+    // Admins can see all users, super_admin has been handled by not adding a where clause
+    return q;
   }, [user?.uid, user?.role, user?.branchId, firestore]);
 
   const { data: users, isLoading } = useCollection<User>(usersQuery);
 
   const filteredUsers = (roles: string[]) => {
       if (!users) return [];
-      return users.filter(u => u.role && roles.includes(u.role));
+      return users.filter(u => {
+        const roleMatch = u.role && roles.includes(u.role);
+        const statusMatch = showDisabled ? true : u.status === 'active';
+        return roleMatch && statusMatch;
+      });
   }
   
-  const teachers = useMemo(() => filteredUsers(['teacher']), [users]);
-  const parents = useMemo(() => filteredUsers(['parent']), [users]);
-  const admins = useMemo(() => filteredUsers(['branch_admin', 'super_admin']), [users]);
+  const teachers = useMemo(() => filteredUsers(['teacher']), [users, showDisabled]);
+  const parents = useMemo(() => filteredUsers(['parent']), [users, showDisabled]);
+  const admins = useMemo(() => filteredUsers(['branch_admin', 'super_admin']), [users, showDisabled]);
 
   return (
     <div className="space-y-6">
@@ -48,7 +61,11 @@ export default function UsersPage() {
             View, invite, and manage users for your branch.
           </p>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-4">
+           <div className="flex items-center space-x-2">
+            <Switch id="show-disabled" checked={showDisabled} onCheckedChange={setShowDisabled} />
+            <Label htmlFor="show-disabled">Show Disabled</Label>
+          </div>
           <Button asChild>
             <Link href="/users/invite">
               <PlusCircle className="mr-2 h-4 w-4" /> Create New User
@@ -70,7 +87,7 @@ export default function UsersPage() {
                     <CardDescription>A list of all teachers in your view.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <UserTable columns={['fullName', 'email', 'branchId', 'actions']} data={teachers} isLoading={isLoading} />
+                    <UserTable columns={['fullName', 'email', 'branchId', 'status', 'actions']} data={teachers} isLoading={isLoading} />
                 </CardContent>
             </Card>
         </TabsContent>
@@ -81,7 +98,7 @@ export default function UsersPage() {
                     <CardDescription>A list of all parents in your view.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <UserTable columns={['fullName', 'email', 'branchId', 'actions']} data={parents} isLoading={isLoading} />
+                    <UserTable columns={['fullName', 'email', 'branchId', 'status', 'actions']} data={parents} isLoading={isLoading} />
                 </CardContent>
             </Card>
         </TabsContent>
@@ -92,7 +109,7 @@ export default function UsersPage() {
                     <CardDescription>A list of all administrators in your view.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <UserTable columns={['fullName', 'email', 'branchId', 'actions']} data={admins} isLoading={isLoading} />
+                    <UserTable columns={['fullName', 'email', 'branchId', 'status', 'actions']} data={admins} isLoading={isLoading} />
                 </CardContent>
             </Card>
         </TabsContent>

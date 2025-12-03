@@ -207,6 +207,7 @@ export default function InviteUserPage() {
         email: values.email,
         role: values.role,
         branchId: values.branchId,
+        status: 'active', // Set default status to active
       });
 
       toast({
