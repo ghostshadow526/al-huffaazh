@@ -1,92 +1,124 @@
-
 'use client';
 
-import { useState } from "react";
-import Image from "next/image";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogOverlay, DialogPortal, DialogTitle } from "@/components/ui/dialog";
+import { useState } from 'react';
+import Image from 'next/image';
+import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog"
+import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-interface Image {
-    src: string;
-    'data-ai-hint'?: string;
+interface GalleryImageProps {
+  src: string;
+  'data-ai-hint'?: string;
+  caption?: string;
 }
 
 interface GalleryGridProps {
-    images: Image[];
-    isLoading: boolean;
+  images: GalleryImageProps[];
+  isLoading: boolean;
 }
 
 export function GalleryGrid({ images, isLoading }: GalleryGridProps) {
-    const [selectedImage, setSelectedImage] = useState<Image | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
 
-    const openModal = (image: Image) => {
-        setSelectedImage(image);
-    };
+  const handleImageClick = (index: number) => {
+    setSelectedImageIndex(index);
+  };
 
-    const closeModal = () => {
-        setSelectedImage(null);
-    };
+  const handleClose = () => {
+    setSelectedImageIndex(null);
+  };
 
-    if (isLoading) {
-        return (
-             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {[...Array(8)].map((_, i) => (
-                    <div key={i} className="aspect-square">
-                        <Skeleton className="w-full h-full rounded-xl" />
-                    </div>
-                ))}
-            </div>
-        )
+  const handleNext = () => {
+    if (selectedImageIndex !== null) {
+      setSelectedImageIndex((selectedImageIndex + 1) % images.length);
     }
+  };
 
+  const handlePrev = () => {
+    if (selectedImageIndex !== null) {
+      setSelectedImageIndex((selectedImageIndex - 1 + images.length) % images.length);
+    }
+  };
+
+  const selectedImage = selectedImageIndex !== null ? images[selectedImageIndex] : null;
+
+  if (isLoading) {
     return (
-        <div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {images.map((image, index) => (
-                    <div 
-                        key={index}
-                        className="aspect-square relative group overflow-hidden rounded-xl cursor-pointer"
-                        onClick={() => openModal(image)}
-                    >
-                        <Image
-                            src={image.src}
-                            alt={image['data-ai-hint'] || `Gallery image ${index + 1}`}
-                            fill
-                            style={{objectFit: 'cover'}}
-                            className="transition-transform duration-300 group-hover:scale-110"
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        />
-                         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    </div>
-                ))}
-            </div>
-
-            <Dialog open={selectedImage !== null} onOpenChange={(isOpen) => !isOpen && closeModal()}>
-                 <DialogPortal>
-                    <DialogOverlay className="fixed inset-0 bg-black/80 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-                    <DialogContent 
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4"
-                        onPointerDownOutside={(e) => {
-                            if (e.target === e.currentTarget) {
-                                closeModal();
-                            }
-                        }}
-                    >
-                        <DialogTitle className="sr-only">Enlarged Gallery Image</DialogTitle>
-                        {selectedImage && (
-                            <div className="relative w-full h-full max-w-4xl max-h-[90vh]">
-                                 <Image
-                                    src={selectedImage.src}
-                                    alt={selectedImage['data-ai-hint'] || 'Enlarged gallery image'}
-                                    fill
-                                    style={{objectFit: 'contain'}}
-                                />
-                            </div>
-                        )}
-                    </DialogContent>
-                </DialogPortal>
-            </Dialog>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {[...Array(8)].map((_, i) => (
+          <Skeleton key={i} className="aspect-square w-full rounded-xl" />
+        ))}
+      </div>
     );
-}
+  }
 
+  return (
+    <>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {images.map((image, index) => (
+          <div
+            key={index}
+            className="group relative aspect-square w-full cursor-pointer overflow-hidden rounded-xl shadow-md transition-shadow hover:shadow-xl"
+            onClick={() => handleImageClick(index)}
+          >
+            <Image
+              src={image.src}
+              alt={image.caption || `Gallery image ${index + 1}`}
+              fill
+              className="object-cover transition-transform duration-300 group-hover:scale-105"
+              sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+              data-ai-hint={image['data-ai-hint']}
+            />
+             <div className="absolute inset-0 bg-black/20 opacity-0 transition-opacity group-hover:opacity-100" />
+          </div>
+        ))}
+      </div>
+
+      <Dialog open={selectedImageIndex !== null} onOpenChange={handleClose}>
+        <DialogContent className="max-w-4xl w-full p-2 sm:p-4 bg-transparent border-0 shadow-none">
+            {selectedImage && (
+                <div className="relative w-full h-auto">
+                    <div className="relative aspect-video w-full">
+                        <Image
+                            src={selectedImage.src}
+                            alt={selectedImage.caption || ''}
+                            fill
+                            className="object-contain rounded-lg"
+                            sizes="100vw"
+                        />
+                    </div>
+                    {selectedImage.caption && (
+                        <p className="mt-4 text-center text-white bg-black/50 rounded-b-lg py-2 px-4">
+                            {selectedImage.caption}
+                        </p>
+                    )}
+                </div>
+            )}
+             <Button
+                variant="ghost"
+                size="icon"
+                className="absolute left-0 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-black/30 text-white hover:bg-black/50 hover:text-white"
+                onClick={handlePrev}
+             >
+                <ChevronLeft className="h-6 w-6" />
+                <span className="sr-only">Previous Image</span>
+             </Button>
+             <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-1/2 -translate-y-1/2 h-12 w-12 rounded-full bg-black/30 text-white hover:bg-black/50 hover:text-white"
+                onClick={handleNext}
+             >
+                <ChevronRight className="h-6 w-6" />
+                <span className="sr-only">Next Image</span>
+             </Button>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
