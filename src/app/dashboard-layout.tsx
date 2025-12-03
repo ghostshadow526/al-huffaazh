@@ -50,6 +50,7 @@ const navItems: { href: string; label: string; icon: LucideIcon; roles: UserRole
     { href: "/manage-students", label: "Manage Students", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/search-students", label: "Search Students", icon: Search, roles: ['super_admin', 'branch_admin'] },
     { href: "/attendance", label: "Attendance", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
+    { href: "/results", label: "Results", icon: GraduationCap, roles: ['teacher', 'branch_admin', 'super_admin', 'parent'] },
     { href: "/gallery/upload", label: "Gallery", icon: ImageIcon, roles: ['super_admin', 'branch_admin'] },
     { href: "/transactions", label: "Transactions", icon: ArrowLeftRight, roles: ['parent'] },
     { href: "/admin/transactions", label: "All Transactions", icon: CreditCard, roles: ['super_admin', 'branch_admin'] },
@@ -99,7 +100,7 @@ export default function DashboardLayout({ user, children }: { user: User; childr
             <SidebarMenuItem>
                 <div className="flex items-center gap-3 p-2 group-data-[state=collapsed]:p-0 group-data-[state=collapsed]:justify-center">
                     <Avatar className="group-data-[state=collapsed]:w-8 group-data-[state=collapsed]:h-8">
-                        <AvatarImage src={user.photoURL || null} alt={user.fullName || 'User'}/>
+                        <AvatarImage src={user.photoURL || undefined} alt={user.fullName || 'User'}/>
                         <AvatarFallback>{getInitials(user.fullName || user.email)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col text-sm group-data-[state=collapsed]:hidden">
