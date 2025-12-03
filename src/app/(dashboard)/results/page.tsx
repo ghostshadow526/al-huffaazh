@@ -47,6 +47,8 @@ import Image from 'next/image';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 const resultSchema = z.object({
@@ -86,6 +88,8 @@ interface Result {
     subjectId: string;
     subjectName: string;
     marks: number;
+    grade: string;
+    recordedAt: { seconds: number, nanoseconds: number};
 }
 
 
@@ -114,18 +118,24 @@ function CreateSubjectForm({ onSubjectCreated }: { onSubjectCreated: () => void 
     async function onSubmit(values: z.infer<typeof subjectFormSchema>) {
         if (!firestore) return;
         setIsSaving(true);
-        try {
-            const id = values.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-            await setDoc(doc(firestore, 'subjects', id), { ...values, id });
+        const newSubject = { ...values, id: values.name.toLowerCase().replace(/[^a-z0-9]/g, '-') };
+        const docRef = doc(firestore, 'subjects', newSubject.id);
+
+        setDoc(docRef, newSubject).then(() => {
             toast({ title: "Subject Created", description: `"${values.name}" has been added.`});
             onSubjectCreated();
             setOpen(false);
             form.reset();
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: "Error", description: error.message });
-        } finally {
+        }).catch((serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: docRef.path,
+                operation: 'create',
+                requestResourceData: newSubject,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        }).finally(() => {
             setIsSaving(false);
-        }
+        });
     }
     
     return (
@@ -208,7 +218,7 @@ function ScoresForm({ students, terms, subjects, studentOptions, isLoading, onDa
 
     useEffect(() => {
         if (subjects) {
-          const scores = subjects.map(subject => ({
+          const scores = subjects.map((subject: Subject) => ({
             subjectId: subject.id,
             subjectName: subject.name,
             marks: 0,
@@ -224,15 +234,15 @@ function ScoresForm({ students, terms, subjects, studentOptions, isLoading, onDa
         setIsSubmitting(true);
     
         const batch = writeBatch(firestore);
-        const termName = terms?.find(t => t.id === values.termId)?.name || 'Unknown Term';
-        const studentName = students?.find(s => s.id === values.studentId)?.fullName || 'Unknown Student';
-        const studentBranchId = students?.find(s => s.id === values.studentId)?.branchId;
+        const termName = terms?.find((t:Term) => t.id === values.termId)?.name || 'Unknown Term';
+        const studentName = students?.find((s:Student) => s.id === values.studentId)?.fullName || 'Unknown Student';
+        const studentBranchId = students?.find((s:Student) => s.id === values.studentId)?.branchId;
     
         values.scores.forEach(score => {
-          if (score.marks > 0 || score.grade) { // Only save if there's a mark or grade
+          if (score.marks > 0 || score.grade) { 
             const resultId = `${values.studentId}_${values.termId}_${score.subjectId}`;
             const resultDocRef = doc(firestore, 'results', resultId);
-            batch.set(resultDocRef, {
+            const resultData = {
               studentId: values.studentId,
               termId: values.termId,
               subjectId: score.subjectId,
@@ -244,7 +254,8 @@ function ScoresForm({ students, terms, subjects, studentOptions, isLoading, onDa
               studentName,
               termName,
               subjectName: score.subjectName
-            }, { merge: true });
+            };
+            batch.set(resultDocRef, resultData, { merge: true });
           }
         });
     
@@ -255,7 +266,7 @@ function ScoresForm({ students, terms, subjects, studentOptions, isLoading, onDa
             description: `Successfully saved results for ${studentName}.`,
           });
           form.reset();
-          const scores = subjects?.map(subject => ({ subjectId: subject.id, subjectName: subject.name, marks: 0, grade: '' })) || [];
+          const scores = subjects?.map((subject: Subject) => ({ subjectId: subject.id, subjectName: subject.name, marks: 0, grade: '' })) || [];
           replace(scores);
         } catch (error: any) {
           toast({
@@ -306,7 +317,7 @@ function ScoresForm({ students, terms, subjects, studentOptions, isLoading, onDa
                                     </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                    {terms?.map(term => (
+                                    {terms?.map((term:Term) => (
                                         <SelectItem key={term.id} value={term.id}>{term.name}</SelectItem>
                                     ))}
                                     </SelectContent>
@@ -402,27 +413,32 @@ function ReportCardForm({ students, terms, studentOptions, isLoading }: any) {
 
     const onSubmit = async (values: z.infer<typeof reportCardSchema>) => {
         if (!user || !firestore) return;
-        const selectedChild = students?.find(c => c.id === values.studentId);
+        const selectedChild = students?.find((c:Student) => c.id === values.studentId);
         if (!selectedChild) return;
         setIsSubmitting(true);
-
-        try {
-            await addDoc(collection(firestore, 'reportCards'), {
+        const reportCardData = {
                 ...values,
                 studentName: selectedChild.fullName,
                 branchId: selectedChild.branchId,
                 uploadedBy: user.uid,
                 uploadedAt: serverTimestamp(),
-            });
+            };
+
+        addDoc(collection(firestore, 'reportCards'), reportCardData).then(() => {
             toast({ title: 'Report Card Submitted', description: 'The result sheet has been saved.' });
             form.reset();
             setPhotoUrl('');
             router.push('/dashboard');
-        } catch (error: any) {
-             toast({ variant: 'destructive', title: 'Submission Failed', description: error.message });
-        } finally {
+        }).catch((serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: 'reportCards',
+                operation: 'create',
+                requestResourceData: reportCardData,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        }).finally(() => {
             setIsSubmitting(false);
-        }
+        });
     };
 
     return (
@@ -498,7 +514,7 @@ function ReportCardForm({ students, terms, studentOptions, isLoading }: any) {
                                     </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                    {terms?.map(term => (
+                                    {terms?.map((term:Term) => (
                                         <SelectItem key={term.id} value={term.id}>{term.name}</SelectItem>
                                     ))}
                                     </SelectContent>
@@ -523,65 +539,69 @@ function ReportCardForm({ students, terms, studentOptions, isLoading }: any) {
 function ParentResultsView() {
     const { user } = useAuth();
     const firestore = useFirestore();
-    const [allResults, setAllResults] = useState<Result[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
+    
     const childrenQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
         return query(collection(firestore, 'students'), where('parentUserId', '==', user.uid));
     }, [user, firestore]);
     const { data: children, isLoading: childrenLoading } = useCollection<Student>(childrenQuery);
-    
+
+    const [resultsByChild, setResultsByChild] = useState<Record<string, Result[]>>({});
+    const [resultsLoading, setResultsLoading] = useState(true);
+
     useEffect(() => {
+        if (childrenLoading || !children || !firestore) return;
+
         const fetchAllResults = async () => {
-            if (!children || children.length === 0 || !firestore) {
-                setIsLoading(false);
-                return;
+            setResultsLoading(true);
+            const allResults: Record<string, Result[]> = {};
+            if (children.length === 0) {
+                 setResultsLoading(false);
+                 return;
             }
 
-            setIsLoading(true);
-            const resultsPromises = children.map(async (child) => {
+            for (const child of children) {
                 const resultsQuery = query(
                     collection(firestore, 'results'),
-                    where('studentId', '==', child.id)
+                    where('studentId', '==', child.id),
+                    orderBy('recordedAt', 'desc')
                 );
-                const querySnapshot = await getDocs(resultsQuery);
-                return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result));
-            });
-
-            try {
-                const resultsArrays = await Promise.all(resultsPromises);
-                const flattenedResults = resultsArrays.flat();
-                setAllResults(flattenedResults);
-            } catch (error) {
-                console.error("Error fetching results for children:", error);
-            } finally {
-                setIsLoading(false);
+                try {
+                    const querySnapshot = await getDocs(resultsQuery);
+                    allResults[child.id] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result));
+                } catch (error) {
+                    console.error(`Failed to fetch results for student ${child.id}`, error);
+                    const permissionError = new FirestorePermissionError({
+                        path: `results where studentId == ${child.id}`,
+                        operation: 'list',
+                    });
+                    errorEmitter.emit('permission-error', permissionError);
+                }
             }
+            setResultsByChild(allResults);
+            setResultsLoading(false);
         };
 
-        if(!childrenLoading) {
-            fetchAllResults();
-        }
+        fetchAllResults();
     }, [children, childrenLoading, firestore]);
 
+    const resultsByTermAndChild = useMemo(() => {
+        const grouped: Record<string, Record<string, Result[]>> = {};
+        if (!children) return grouped;
 
-    const resultsByChildAndTerm = useMemo(() => {
-        if (!allResults) return {};
-        return allResults.reduce((acc, result) => {
-            const childName = result.studentName;
-            const termName = result.termName;
-            if (!acc[childName]) {
-                acc[childName] = {};
+        for (const child of children) {
+            const childResults = resultsByChild[child.id];
+            if (childResults) {
+                grouped[child.fullName] = childResults.reduce((acc, result) => {
+                    const term = result.termName;
+                    if (!acc[term]) acc[term] = [];
+                    acc[term].push(result);
+                    return acc;
+                }, {} as Record<string, Result[]>);
             }
-            if (!acc[childName][termName]) {
-                acc[childName][termName] = [];
-            }
-            acc[childName][termName].push(result);
-            return acc;
-        }, {} as Record<string, Record<string, Result[]>>);
-
-    }, [allResults]);
+        }
+        return grouped;
+    }, [resultsByChild, children]);
 
     const getGrade = (marks: number) => {
         if (marks >= 90) return { grade: 'A+', color: 'bg-green-500' };
@@ -592,7 +612,7 @@ function ParentResultsView() {
         return { grade: 'F', color: 'bg-red-500' };
     }
 
-    if (isLoading) {
+    if (childrenLoading || resultsLoading) {
         return (
             <CardContent>
                 <div className="space-y-4">
@@ -601,50 +621,50 @@ function ParentResultsView() {
                     <Skeleton className="h-24 w-full" />
                 </div>
             </CardContent>
-        )
+        );
+    }
+    
+    if (Object.keys(resultsByTermAndChild).length === 0) {
+      return (<p className="text-center text-muted-foreground h-24 flex items-center justify-center">No results have been recorded for your children yet.</p>)
     }
 
     return (
         <CardContent>
-            {Object.keys(resultsByChildAndTerm).length > 0 ? (
-                <Accordion type="multiple" className="w-full space-y-4">
-                    {Object.entries(resultsByChildAndTerm).map(([childName, terms]) => (
-                        <AccordionItem key={childName} value={childName} className="border rounded-lg px-4 bg-background">
-                             <AccordionTrigger className="text-xl font-semibold text-primary-deep">{childName}</AccordionTrigger>
-                             <AccordionContent>
-                                <Accordion type="single" collapsible className="w-full">
-                                    {Object.entries(terms).map(([termName, termResults]) => (
-                                        <AccordionItem key={termName} value={termName}>
-                                            <AccordionTrigger className="text-lg font-semibold">{termName}</AccordionTrigger>
-                                            <AccordionContent>
-                                                <ul className="space-y-3">
-                                                    {termResults.map(result => (
-                                                        <li key={result.id} className="flex justify-between items-center p-3 rounded-md bg-secondary/50">
-                                                            <span className="font-medium">{result.subjectName}</span>
-                                                            <div className="flex items-center gap-3">
-                                                                <span className="font-bold text-lg">{result.marks}</span>
-                                                                <Badge className={`${getGrade(result.marks).color} text-white w-10 h-6 flex items-center justify-center`}>
-                                                                    {getGrade(result.marks).grade}
-                                                                </Badge>
-                                                            </div>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </AccordionContent>
-                                        </AccordionItem>
-                                    ))}
-                                </Accordion>
-                            </AccordionContent>
-                        </AccordionItem>
-                    ))}
-                </Accordion>
-            ) : (
-                <p className="text-center text-muted-foreground h-24 flex items-center justify-center">No results have been recorded for your children yet.</p>
-            )}
+            <Accordion type="multiple" className="w-full space-y-4">
+                {Object.entries(resultsByTermAndChild).map(([childName, terms]) => (
+                    <AccordionItem key={childName} value={childName} className="border rounded-lg px-4 bg-background">
+                            <AccordionTrigger className="text-xl font-semibold text-primary-deep">{childName}</AccordionTrigger>
+                            <AccordionContent>
+                            <Accordion type="single" collapsible className="w-full">
+                                {Object.entries(terms).map(([termName, termResults]) => (
+                                    <AccordionItem key={termName} value={termName}>
+                                        <AccordionTrigger className="text-lg font-semibold">{termName}</AccordionTrigger>
+                                        <AccordionContent>
+                                            <ul className="space-y-3">
+                                                {termResults.map(result => (
+                                                    <li key={result.id} className="flex justify-between items-center p-3 rounded-md bg-secondary/50">
+                                                        <span className="font-medium">{result.subjectName}</span>
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="font-bold text-lg">{result.marks}</span>
+                                                            <Badge className={`${getGrade(result.marks).color} text-white w-10 h-6 flex items-center justify-center`}>
+                                                                {getGrade(result.marks).grade}
+                                                            </Badge>
+                                                        </div>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                ))}
+                            </Accordion>
+                        </AccordionContent>
+                    </AccordionItem>
+                ))}
+            </Accordion>
         </CardContent>
-    )
-
+    );
 }
+
 
 async function seedInitialData(db: any) {
     const termsRef = collection(db, 'terms');
