@@ -138,7 +138,7 @@ service cloud.firestore {
 
     match /results/{resultId} {
         allow get: if isSignedInUserActive() && (isOwnerOfResult(resultId) || isParentOfStudentInResult(resultId) || isSuperAdmin() || isTeacherInBranch(get(/databases/$(database)/documents/results/$(resultId)).data.branchId));
-        allow list: if isSignedInUserActive(); // Allow any active user to list, client-side filters will apply.
+        allow list: if isSignedInUserActive();
         allow create: if (isTeacher() && request.resource.data.recordedBy == request.auth.uid) || isSuperAdmin();
         allow update: if isOwnerOfResult(resultId) || isSuperAdmin();
         allow delete: if isSuperAdmin();
