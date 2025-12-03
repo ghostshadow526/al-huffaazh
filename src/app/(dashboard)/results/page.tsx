@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -44,6 +44,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { IKContext, IKUpload } from 'imagekitio-react';
 import Image from 'next/image';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+
 
 const resultSchema = z.object({
   studentId: z.string().min(1, 'Please select a student.'),
@@ -72,6 +76,18 @@ interface Subject {
   name: string;
   category: string;
 }
+
+interface Result {
+    id: string;
+    studentId: string;
+    studentName: string;
+    termId: string;
+    termName: string;
+    subjectId: string;
+    subjectName: string;
+    marks: number;
+}
+
 
 const imageKitAuthenticator = async () => {
     const response = await fetch('/api/imagekit/auth');
@@ -504,6 +520,109 @@ function ReportCardForm({ students, terms, studentOptions, isLoading }: any) {
     );
 }
 
+function ParentResultsView() {
+    const { user } = useAuth();
+    const firestore = useFirestore();
+
+    const childrenQuery = useMemoFirebase(() => {
+        if (!user || !firestore) return null;
+        return query(collection(firestore, 'students'), where('parentUserId', '==', user.uid));
+    }, [user, firestore]);
+    const { data: children, isLoading: childrenLoading } = useCollection<Student>(childrenQuery);
+    const childIds = useMemo(() => children?.map(c => c.id) || [], [children]);
+
+    const resultsQuery = useMemoFirebase(() => {
+        if (!firestore || childIds.length === 0) return null;
+        return query(
+            collection(firestore, 'results'),
+            where('studentId', 'in', childIds),
+            orderBy('recordedAt', 'desc')
+        );
+    }, [firestore, childIds]);
+    const { data: results, isLoading: resultsLoading } = useCollection<Result>(resultsQuery);
+    
+    const resultsByChildAndTerm = useMemo(() => {
+        if (!results) return {};
+        return results.reduce((acc, result) => {
+            const childName = result.studentName;
+            const termName = result.termName;
+            if (!acc[childName]) {
+                acc[childName] = {};
+            }
+            if (!acc[childName][termName]) {
+                acc[childName][termName] = [];
+            }
+            acc[childName][termName].push(result);
+            return acc;
+        }, {} as Record<string, Record<string, Result[]>>);
+
+    }, [results]);
+
+    const getGrade = (marks: number) => {
+        if (marks >= 90) return { grade: 'A+', color: 'bg-green-500' };
+        if (marks >= 80) return { grade: 'A', color: 'bg-green-400' };
+        if (marks >= 70) return { grade: 'B', color: 'bg-blue-400' };
+        if (marks >= 60) return { grade: 'C', color: 'bg-yellow-400' };
+        if (marks >= 50) return { grade: 'D', color: 'bg-orange-400' };
+        return { grade: 'F', color: 'bg-red-500' };
+    }
+
+    const isLoading = childrenLoading || resultsLoading;
+
+    if (isLoading) {
+        return (
+            <CardContent>
+                <div className="space-y-4">
+                    <Skeleton className="h-10 w-1/3" />
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                </div>
+            </CardContent>
+        )
+    }
+
+    return (
+        <CardContent>
+            {Object.keys(resultsByChildAndTerm).length > 0 ? (
+                <Accordion type="multiple" className="w-full space-y-4">
+                    {Object.entries(resultsByChildAndTerm).map(([childName, terms]) => (
+                        <AccordionItem key={childName} value={childName} className="border rounded-lg px-4 bg-background">
+                             <AccordionTrigger className="text-xl font-semibold text-primary-deep">{childName}</AccordionTrigger>
+                             <AccordionContent>
+                                <Accordion type="single" collapsible className="w-full">
+                                    {Object.entries(terms).map(([termName, termResults]) => (
+                                        <AccordionItem key={termName} value={termName}>
+                                            <AccordionTrigger className="text-lg font-semibold">{termName}</AccordionTrigger>
+                                            <AccordionContent>
+                                                <ul className="space-y-3">
+                                                    {termResults.map(result => (
+                                                        <li key={result.id} className="flex justify-between items-center p-3 rounded-md bg-secondary/50">
+                                                            <span className="font-medium">{result.subjectName}</span>
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="font-bold text-lg">{result.marks}</span>
+                                                                <Badge className={`${getGrade(result.marks).color} text-white w-10 h-6 flex items-center justify-center`}>
+                                                                    {getGrade(result.marks).grade}
+                                                                </Badge>
+                                                            </div>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    ))}
+                                </Accordion>
+                            </AccordionContent>
+                        </AccordionItem>
+                    ))}
+                </Accordion>
+            ) : (
+                <p className="text-center text-muted-foreground h-24 flex items-center justify-center">No results have been recorded for your children yet.</p>
+            )}
+        </CardContent>
+    )
+
+}
+
 async function seedInitialData(db: any) {
     const termsRef = collection(db, 'terms');
     const subjectsRef = collection(db, 'subjects');
@@ -576,6 +695,19 @@ export default function ResultsPage() {
   
   const studentOptions = students?.map(s => ({ value: s.id, label: `${s.fullName} (${s.admissionNo})` })) || [];
   const isLoading = studentsLoading || termsLoading || subjectsLoading;
+
+  if (user?.role === 'parent') {
+      return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Children's Academic Results</CardTitle>
+                <CardDescription>A summary of academic performance for your children.</CardDescription>
+            </CardHeader>
+            <ParentResultsView />
+        </Card>
+      );
+  }
+
 
   return (
     <Card>
