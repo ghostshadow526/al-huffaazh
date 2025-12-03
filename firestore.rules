@@ -137,7 +137,8 @@ service cloud.firestore {
     }
 
     match /results/{resultId} {
-        allow get, list: if true;
+        allow get: if isSignedInUserActive();
+        allow list: if isSignedInUserActive();
         allow create: if (isTeacher() && request.resource.data.recordedBy == request.auth.uid) || isSuperAdmin();
         allow update: if isOwnerOfResult(resultId) || isSuperAdmin();
         allow delete: if isSuperAdmin();

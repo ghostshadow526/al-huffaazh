@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, query, where, writeBatch, doc, getDocs, setDoc, addDoc, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, query, where, writeBatch, doc, getDocs, setDoc, addDoc, serverTimestamp, orderBy, getDoc } from 'firebase/firestore';
 import { useAuth } from '@/components/auth-provider';
 import { useFirestore, useMemoFirebase, useCollection } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -523,27 +523,53 @@ function ReportCardForm({ students, terms, studentOptions, isLoading }: any) {
 function ParentResultsView() {
     const { user } = useAuth();
     const firestore = useFirestore();
+    const [allResults, setAllResults] = useState<Result[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     const childrenQuery = useMemoFirebase(() => {
         if (!user || !firestore) return null;
         return query(collection(firestore, 'students'), where('parentUserId', '==', user.uid));
     }, [user, firestore]);
     const { data: children, isLoading: childrenLoading } = useCollection<Student>(childrenQuery);
-    const childIds = useMemo(() => children?.map(c => c.id) || [], [children]);
-
-    const resultsQuery = useMemoFirebase(() => {
-        if (!firestore || childIds.length === 0) return null;
-        return query(
-            collection(firestore, 'results'),
-            where('studentId', 'in', childIds),
-            orderBy('recordedAt', 'desc')
-        );
-    }, [firestore, childIds]);
-    const { data: results, isLoading: resultsLoading } = useCollection<Result>(resultsQuery);
     
+    useEffect(() => {
+        const fetchAllResults = async () => {
+            if (!children || children.length === 0 || !firestore) {
+                setIsLoading(false);
+                return;
+            }
+
+            setIsLoading(true);
+            const resultsPromises = children.map(async (child) => {
+                const resultsQuery = query(
+                    collection(firestore, 'results'),
+                    where('studentId', '==', child.id),
+                    orderBy('recordedAt', 'desc')
+                );
+                const querySnapshot = await getDocs(resultsQuery);
+                return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Result));
+            });
+
+            try {
+                const resultsArrays = await Promise.all(resultsPromises);
+                const flattenedResults = resultsArrays.flat();
+                setAllResults(flattenedResults);
+            } catch (error) {
+                console.error("Error fetching results for children:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        if(!childrenLoading) {
+            fetchAllResults();
+        }
+    }, [children, childrenLoading, firestore]);
+
+
     const resultsByChildAndTerm = useMemo(() => {
-        if (!results) return {};
-        return results.reduce((acc, result) => {
+        if (!allResults) return {};
+        return allResults.reduce((acc, result) => {
             const childName = result.studentName;
             const termName = result.termName;
             if (!acc[childName]) {
@@ -556,7 +582,7 @@ function ParentResultsView() {
             return acc;
         }, {} as Record<string, Record<string, Result[]>>);
 
-    }, [results]);
+    }, [allResults]);
 
     const getGrade = (marks: number) => {
         if (marks >= 90) return { grade: 'A+', color: 'bg-green-500' };
@@ -566,8 +592,6 @@ function ParentResultsView() {
         if (marks >= 50) return { grade: 'D', color: 'bg-orange-400' };
         return { grade: 'F', color: 'bg-red-500' };
     }
-
-    const isLoading = childrenLoading || resultsLoading;
 
     if (isLoading) {
         return (
