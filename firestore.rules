@@ -15,8 +15,6 @@
  * - /attendance/{attendanceId}: Stores student attendance records.
 - /subjects/{subjectId}: Publicly readable list of subjects.
  * - /terms/{termId}: Publicly readable list of school terms.
- * - /results/{resultId}: Stores student results.
- * - /reportCards/{cardId}: Stores uploaded result sheets.
  * - /gallery/{imageId}: Publicly readable gallery images.
  *
  * Key Security Decisions:
@@ -69,21 +67,11 @@ service cloud.firestore {
     function isParentOfReceipt(receiptId) {
         return isParent() && get(/databases/$(database)/documents/receipts/$(receiptId)).data.parentUserId == request.auth.uid;
     }
-
-    function isParentOfStudentInResult(resultId) {
-       let resultDoc = get(/databases/$(database)/documents/results/$(resultId)).data;
-       let studentDoc = get(/databases/$(database)/documents/students/$(resultDoc.studentId)).data;
-       return isParent() && studentDoc.parentUserId == request.auth.uid;
-    }
     
     function isParentOfStudentInReportCard(cardId) {
        return isParent() && get(/databases/$(database)/documents/reportCards/$(cardId)).data.studentId != null && get(/databases/$(database)/documents/students/$(get(/databases/$(database)/documents/reportCards/$(cardId)).data.studentId)).data.parentUserId == request.auth.uid;
     }
 
-    function isOwnerOfResult(resultId) {
-      return isTeacher() && get(/databases/$(database)/documents/results/$(resultId)).data.recordedBy == request.auth.uid;
-    }
-    
     function isTeacherInBranch(branchId) {
         return isTeacher() && getUserData(request.auth.uid).branchId == branchId;
     }
@@ -123,7 +111,7 @@ service cloud.firestore {
     }
 
     match /attendance/{attendanceId} {
-      allow get, list: if (isTeacher() && getUserData(request.auth.uid).branchId == get(/databases/$(database)/documents/attendance/$(attendanceId)).data.branchId) || isSuperAdmin();
+      allow get, list: if (isTeacher() && getUserData(request.auth.uid).branchId == get(/databases/$(database)/documents/attendance/$(attendanceId)).data.branchId) || isSuperAdmin() || (isParent() && get(/databases/$(database)/documents/attendance/$(attendanceId)).data.studentId != null && get(/databases/$(database)/documents/students/$(get(/databases/$(database)/documents/attendance/$(attendanceId)).data.studentId)).data.parentUserId == request.auth.uid);
       allow create, update: if (isTeacher() && request.resource.data.branchId == getUserData(request.auth.uid).branchId) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
@@ -136,14 +124,6 @@ service cloud.firestore {
     match /terms/{termId} {
       allow get, list: if true;
       allow create, update, delete: if false;
-    }
-
-    match /results/{resultId} {
-        allow get: if isParentOfStudentInResult(resultId) || isOwnerOfResult(resultId) || isSuperAdmin() || (isBranchAdmin() && getUserData(request.auth.uid).branchId == get(/databases/$(database)/documents/results/$(resultId)).data.branchId);
-        allow list: if (isTeacher() && getUserData(request.auth.uid).branchId == resource.data.branchId) || (isBranchAdmin() && getUserData(request.auth.uid).branchId == resource.data.branchId) || isSuperAdmin() || (isParent() && request.auth.uid == resource.data.parentUserId);
-        allow create: if (isTeacher() && request.resource.data.recordedBy == request.auth.uid) || isSuperAdmin();
-        allow update: if isOwnerOfResult(resultId) || isSuperAdmin();
-        allow delete: if isSuperAdmin();
     }
 
     match /reportCards/{cardId} {

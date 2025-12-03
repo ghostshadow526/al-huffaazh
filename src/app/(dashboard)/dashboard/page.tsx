@@ -16,7 +16,6 @@ const quickActions: { href: string; label: string; description: string; icon: Re
     { href: "/students/add", label: "Add a new student", description: "Enroll a new student and create their parent's account.", icon: UserPlus, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/manage-students", label: "Manage student records", description: "View, and see details of existing students.", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/attendance", label: "Take attendance", description: "Mark daily attendance by scanning student QR codes.", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
-    { href: "/results", label: "Enter student results", description: "Input term results and grades for your students.", icon: GraduationCap, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/admin/transactions", label: "Confirm payments", description: "Review and confirm submitted fee payments.", icon: CreditCard, roles: ['super_admin', 'branch_admin'] },
     { href: "/transactions", label: "View payment history", description: "Check your payment status and upload receipts.", icon: CreditCard, roles: ['parent'] },
     { href: "/users/invite", label: "Create a new user", description: "Invite new teachers or administrators to the system.", icon: UserPlus, roles: ['super_admin', 'branch_admin'] },
@@ -61,12 +60,6 @@ function ParentDashboard({ user }: { user: NonNullable<ReturnType<typeof useAuth
                                     <Link href={`/children/${child.id}/attendance`}>
                                         <CalendarCheck className="mr-2 h-4 w-4"/>
                                         Attendance
-                                    </Link>
-                                </Button>
-                                <Button asChild variant="secondary" size="sm">
-                                    <Link href={`/children/${child.id}/results`}>
-                                        <GraduationCap className="mr-2 h-4 w-4"/>
-                                        Results
                                     </Link>
                                 </Button>
                             </div>
