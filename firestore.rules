@@ -47,19 +47,19 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return isSignedInUserActive() && request.auth.token.role == 'super_admin';
+      return isSignedInUserActive() && getUserData(request.auth.uid).role == 'super_admin';
     }
 
     function isBranchAdmin() {
-      return isSignedInUserActive() && request.auth.token.role == 'branch_admin';
+      return isSignedInUserActive() && getUserData(request.auth.uid).role == 'branch_admin';
     }
 
     function isTeacher() {
-      return isSignedInUserActive() && request.auth.token.role == 'teacher';
+      return isSignedInUserActive() && getUserData(request.auth.uid).role == 'teacher';
     }
 
     function isParent() {
-      return isSignedInUserActive() && request.auth.token.role == 'parent';
+      return isSignedInUserActive() && getUserData(request.auth.uid).role == 'parent';
     }
 
     function isParentOfStudent(studentId) {
@@ -82,36 +82,36 @@ service cloud.firestore {
       return isTeacher() && get(/databases/$(database)/documents/results/$(resultId)).data.recordedBy == request.auth.uid;
     }
     
-    function isTeacherInBranchOfResult(resultId) {
-      return isTeacher() && get(/databases/$(database)/documents/results/$(resultId)).data.branchId == request.auth.token.branchId;
+    function isTeacherInBranch(branchId) {
+        return isTeacher() && getUserData(request.auth.uid).branchId == branchId;
     }
     
     // --- Collection Rules ---
 
     match /branches/{branchId} {
       allow get, list: if true;
-      allow create, update, delete: if isSuperAdmin() || (isBranchAdmin() && request.auth.token.branchId == branchId);
+      allow create, update, delete: if isSuperAdmin() || (isBranchAdmin() && getUserData(request.auth.uid).branchId == branchId);
     }
 
     match /users/{userId} {
-      allow get: if isSignedIn() && (isOwner(userId) || isSuperAdmin() || (isBranchAdmin() && getUserData(userId).branchId == request.auth.token.branchId));
+      allow get: if isSignedIn() && (isOwner(userId) || isSuperAdmin() || (isBranchAdmin() && getUserData(userId).branchId == getUserData(request.auth.uid).branchId));
       allow list: if isSuperAdmin() || isBranchAdmin();
       allow create: if isSignedIn(); // Allow creation, status will be set to 'active' by default.
       // Allow admins to update any user in their scope. Users can only update their own profile if active.
-      allow update: if (isSuperAdmin() || (isBranchAdmin() && getUserData(userId).branchId == request.auth.token.branchId)) || (isOwner(userId) && isSignedInUserActive());
+      allow update: if (isSuperAdmin() || (isBranchAdmin() && getUserData(userId).branchId == getUserData(request.auth.uid).branchId)) || (isOwner(userId) && isSignedInUserActive());
       allow delete: if false; // Disallow hard deletes. Use status field instead.
     }
 
     match /students/{studentId} {
-      allow get, list: if isSignedInUserActive() && (isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == request.auth.token.branchId) || (isTeacher() && request.auth.token.branchId == get(/databases/$(database)/documents/students/$(studentId)).data.branchId) || isParentOfStudent(studentId));
-      allow create: if isSuperAdmin() || (isBranchAdmin() && request.resource.data.branchId == request.auth.token.branchId);
-      allow update, delete: if isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == request.auth.token.branchId);
+      allow get, list: if isSignedInUserActive() && (isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && getUserData(request.auth.uid).branchId == get(/databases/$(database)/documents/students/$(studentId)).data.branchId) || isParentOfStudent(studentId));
+      allow create: if isSuperAdmin() || (isBranchAdmin() && request.resource.data.branchId == getUserData(request.auth.uid).branchId);
+      allow update, delete: if isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId);
     }
 
     match /receipts/{receiptId} {
-      allow get, list: if isSignedInUserActive() && (isParentOfReceipt(receiptId) || (isBranchAdmin() && get(/databases/$(database)/documents/receipts/$(receiptId)).data.branchId == request.auth.token.branchId) || isSuperAdmin());
+      allow get, list: if isSignedInUserActive() && (isParentOfReceipt(receiptId) || (isBranchAdmin() && get(/databases/$(database)/documents/receipts/$(receiptId)).data.branchId == getUserData(request.auth.uid).branchId) || isSuperAdmin());
       allow create: if isParent() && isParentOfStudent(request.resource.data.studentId);
-      allow update: if isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/receipts/$(receiptId)).data.branchId == request.auth.token.branchId);
+      allow update: if isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/receipts/$(receiptId)).data.branchId == getUserData(request.auth.uid).branchId);
       allow delete: if isSuperAdmin();
     }
 
@@ -121,8 +121,8 @@ service cloud.firestore {
     }
 
     match /attendance/{attendanceId} {
-      allow get, list: if (isTeacher() && request.auth.token.branchId == get(/databases/$(database)/documents/attendance/$(attendanceId)).data.branchId) || isSuperAdmin();
-      allow create, update: if (isTeacher() && request.resource.data.branchId == request.auth.token.branchId) || isSuperAdmin();
+      allow get, list: if (isTeacher() && getUserData(request.auth.uid).branchId == get(/databases/$(database)/documents/attendance/$(attendanceId)).data.branchId) || isSuperAdmin();
+      allow create, update: if (isTeacher() && request.resource.data.branchId == getUserData(request.auth.uid).branchId) || isSuperAdmin();
       allow delete: if isSuperAdmin();
     }
 
@@ -137,10 +137,11 @@ service cloud.firestore {
     }
 
     match /results/{resultId} {
-      allow get, list: if isSignedInUserActive() && (isOwnerOfResult(resultId) || isParentOfStudentInResult(resultId) || isSuperAdmin() || isTeacherInBranchOfResult(resultId));
-      allow create: if (isTeacher() && request.resource.data.recordedBy == request.auth.uid) || isSuperAdmin();
-      allow update: if isOwnerOfResult(resultId) || isSuperAdmin();
-      allow delete: if isSuperAdmin();
+        allow get: if isSignedInUserActive() && (isOwnerOfResult(resultId) || isParentOfStudentInResult(resultId) || isSuperAdmin() || isTeacherInBranch(get(/databases/$(database)/documents/results/$(resultId)).data.branchId));
+        allow list: if isSignedInUserActive(); // Allow any active user to list, client-side filters will apply.
+        allow create: if (isTeacher() && request.resource.data.recordedBy == request.auth.uid) || isSuperAdmin();
+        allow update: if isOwnerOfResult(resultId) || isSuperAdmin();
+        allow delete: if isSuperAdmin();
     }
 
     match /reportCards/{cardId} {
