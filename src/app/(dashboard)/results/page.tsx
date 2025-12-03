@@ -25,7 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, UploadCloud, PlusCircle, Check, Trash2, GraduationCap } from 'lucide-react';
 import { Combobox } from '@/components/ui/combobox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Form, FormField } from '@/components/ui/form';
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 
 // --- Data Schemas and Interfaces ---
 
@@ -57,6 +57,13 @@ interface Result {
   subjectName: string;
   marks: number;
   grade: string;
+}
+
+interface ReportCard {
+    id: string;
+    termId: string;
+    termName: string;
+    imageUrl: string;
 }
 
 interface Term {
@@ -182,7 +189,7 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
               <FormItem>
                 <Label>Student</Label>
                 <Combobox options={studentOptions} onSelect={field.onChange} placeholder="Select student..." searchText="Search students..."/>
-                {form.formState.errors.studentId && <p className="text-sm font-medium text-destructive">{form.formState.errors.studentId.message}</p>}
+                <FormMessage />
               </FormItem>
             )}/>
             <FormField control={form.control} name="termId" render={({ field }) => (
@@ -192,7 +199,7 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
                   <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
                   <SelectContent>{termOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                 </Select>
-                 {form.formState.errors.termId && <p className="text-sm font-medium text-destructive">{form.formState.errors.termId.message}</p>}
+                 <FormMessage />
               </FormItem>
             )}/>
           </div>
@@ -204,7 +211,7 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
                     <SelectTrigger><SelectValue placeholder="Select subject" /></SelectTrigger>
                     <SelectContent>{subjectOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                     </Select>
-                    {form.formState.errors.subjectId && <p className="text-sm font-medium text-destructive">{form.formState.errors.subjectId.message}</p>}
+                    <FormMessage />
                 </FormItem>
                 )}/>
                  <Button type="button" variant="outline" onClick={() => setShowNewSubjectDialog(true)}>
@@ -217,7 +224,7 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
             <FormItem>
               <Label>Marks Obtained (out of 100)</Label>
               <Input type="number" {...field} />
-              {form.formState.errors.marks && <p className="text-sm font-medium text-destructive">{form.formState.errors.marks.message}</p>}
+              <FormMessage />
             </FormItem>
           )}/>
 
@@ -297,7 +304,7 @@ function ReportCardUploadForm({ students, terms }: { students: Student[], terms:
               <Button type="button" variant="outline" onClick={() => ikUploadRef.current?.click()} disabled={isUploading}>{isUploading ? 'Uploading...' : (photoUrl ? 'Change File' : 'Choose File')}</Button>
             </IKContext>
             {photoUrl && <Image src={photoUrl} alt="Report preview" width={120} height={150} className="rounded-md object-contain border p-1" />}
-             {form.formState.errors.imageUrl && <p className="text-sm font-medium text-destructive">{form.formState.errors.imageUrl.message}</p>}
+             <FormMessage />
           </FormItem>
         )}/>
         <div className="grid md:grid-cols-2 gap-6">
@@ -305,7 +312,7 @@ function ReportCardUploadForm({ students, terms }: { students: Student[], terms:
               <FormItem>
                 <Label>Student</Label>
                 <Combobox options={studentOptions} onSelect={field.onChange} placeholder="Select student..." searchText="Search students..."/>
-                {form.formState.errors.studentId && <p className="text-sm font-medium text-destructive">{form.formState.errors.studentId.message}</p>}
+                <FormMessage />
               </FormItem>
             )}/>
             <FormField control={form.control} name="termId" render={({ field }) => (
@@ -315,7 +322,7 @@ function ReportCardUploadForm({ students, terms }: { students: Student[], terms:
                   <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
                   <SelectContent>{termOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                 </Select>
-                 {form.formState.errors.termId && <p className="text-sm font-medium text-destructive">{form.formState.errors.termId.message}</p>}
+                 <FormMessage />
               </FormItem>
             )}/>
         </div>
@@ -369,13 +376,27 @@ function ChildResults({ child, terms }: { child: Student, terms: Term[] }) {
     }, [firestore, child.id]);
 
     const { data: results, isLoading: resultsLoading } = useCollection<Result>(resultsQuery);
-    const { data: reportCards, isLoading: reportCardsLoading } = useCollection<{ id: string; termId: string; imageUrl: string }>(reportCardsQuery);
+    const { data: reportCards, isLoading: reportCardsLoading } = useCollection<ReportCard>(reportCardsQuery);
 
     const isLoading = resultsLoading || reportCardsLoading;
 
     if (isLoading) {
         return <Skeleton className="h-24 w-full" />
     }
+
+    // Group results by term
+    const resultsByTerm = results?.reduce((acc, result) => {
+        (acc[result.termId] = acc[result.termId] || { name: result.termName, results: [] }).results.push(result);
+        return acc;
+    }, {} as Record<string, {name: string, results: Result[]}>) || {};
+
+    const reportCardsByTerm = reportCards?.reduce((acc, card) => {
+        acc[card.termId] = card;
+        return acc;
+    }, {} as Record<string, ReportCard>) || {};
+
+    const allTermIds = new Set([...Object.keys(resultsByTerm), ...Object.keys(reportCardsByTerm)]);
+    const allTerms = Array.from(allTermIds).map(id => ({ id, name: resultsByTerm[id]?.name || reportCardsByTerm[id]?.termName || 'Unknown Term'}));
 
     return (
         <AccordionItem value={child.id} key={child.id} className="border-b-0">
@@ -388,9 +409,9 @@ function ChildResults({ child, terms }: { child: Student, terms: Term[] }) {
                 </AccordionTrigger>
                 <AccordionContent className="p-0">
                     <div className="p-6">
-                        {terms.map(term => {
-                            const termResults = results?.filter(r => r.termId === term.id) || [];
-                            const termReportCard = reportCards?.find(rc => rc.termId === term.id);
+                        {allTerms.map(term => {
+                            const termResults = resultsByTerm[term.id]?.results || [];
+                            const termReportCard = reportCardsByTerm[term.id];
 
                             if (termResults.length === 0 && !termReportCard) return null;
 
@@ -418,7 +439,7 @@ function ChildResults({ child, terms }: { child: Student, terms: Term[] }) {
                                 </div>
                             )
                         })}
-                        {results?.length === 0 && reportCards?.length === 0 && (
+                        {allTerms.length === 0 && (
                             <p className="text-muted-foreground text-center py-8">No results or report cards have been uploaded for {child.fullName} yet.</p>
                         )}
                     </div>
