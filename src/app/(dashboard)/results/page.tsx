@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -353,40 +354,81 @@ function TeacherAdminView({ students, terms, subjects, onResultAdded, onSubjectA
   );
 }
 
-
-function ParentResultsView({ children, terms }: { children: Student[], terms: Term[] }) {
+function ChildResults({ child, terms }: { child: Student, terms: Term[] }) {
     const firestore = useFirestore();
 
-    const resultsByChild = children.reduce((acc, child) => {
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const resultsQuery = useMemoFirebase(() => {
-            if (!firestore) return null;
-            return query(collection(firestore, 'results'), where('studentId', '==', child.id));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [firestore, child.id]);
-        
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const { data: results, isLoading } = useCollection<Result>(resultsQuery);
-        
-        acc[child.id] = { results: results || [], isLoading };
-        return acc;
-    }, {} as Record<string, { results: Result[], isLoading: boolean }>);
+    const resultsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'results'), where('studentId', '==', child.id));
+    }, [firestore, child.id]);
 
-    const reportCardsByChild = children.reduce((acc, child) => {
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const reportCardsQuery = useMemoFirebase(() => {
-            if (!firestore) return null;
-            return query(collection(firestore, 'reportCards'), where('studentId', '==', child.id));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [firestore, child.id]);
+    const reportCardsQuery = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return query(collection(firestore, 'reportCards'), where('studentId', '==', child.id));
+    }, [firestore, child.id]);
 
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        const { data: reportCards, isLoading } = useCollection<{id: string; termId: string; imageUrl: string}>(reportCardsQuery);
-        acc[child.id] = { reportCards: reportCards || [], isLoading };
-        return acc;
-    }, {} as Record<string, { reportCards: {id: string, termId: string, imageUrl: string}[], isLoading: boolean }>);
+    const { data: results, isLoading: resultsLoading } = useCollection<Result>(resultsQuery);
+    const { data: reportCards, isLoading: reportCardsLoading } = useCollection<{ id: string; termId: string; imageUrl: string }>(reportCardsQuery);
+
+    const isLoading = resultsLoading || reportCardsLoading;
+
+    if (isLoading) {
+        return <Skeleton className="h-24 w-full" />
+    }
+
+    return (
+        <AccordionItem value={child.id} key={child.id} className="border-b-0">
+            <Card className="overflow-hidden">
+                <AccordionTrigger className="p-6 hover:no-underline bg-muted/50">
+                    <div className="flex items-center gap-4">
+                        <GraduationCap className="h-6 w-6 text-primary" />
+                        <p className="font-semibold text-lg">{child.fullName}</p>
+                    </div>
+                </AccordionTrigger>
+                <AccordionContent className="p-0">
+                    <div className="p-6">
+                        {terms.map(term => {
+                            const termResults = results?.filter(r => r.termId === term.id) || [];
+                            const termReportCard = reportCards?.find(rc => rc.termId === term.id);
+
+                            if (termResults.length === 0 && !termReportCard) return null;
+
+                            return (
+                                <div key={term.id} className="mb-8 last:mb-0">
+                                    <h4 className="font-bold text-lg mb-2 border-b pb-2">{term.name}</h4>
+                                    {termResults.length > 0 && (
+                                        <Table>
+                                            <TableHeader><TableRow><TableHead>Subject</TableHead><TableHead>Marks</TableHead><TableHead>Grade</TableHead></TableRow></TableHeader>
+                                            <TableBody>
+                                                {termResults.map(r => (
+                                                    <TableRow key={r.id}><TableCell>{r.subjectName}</TableCell><TableCell>{r.marks}</TableCell><TableCell>{r.grade}</TableCell></TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    )}
+                                    {termReportCard && (
+                                        <div className="mt-4">
+                                            <h5 className="font-semibold mb-2">Full Report Card</h5>
+                                            <Button asChild variant="outline">
+                                                <a href={termReportCard.imageUrl} target="_blank" rel="noopener noreferrer">View Uploaded Report</a>
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
+                        {results?.length === 0 && reportCards?.length === 0 && (
+                            <p className="text-muted-foreground text-center py-8">No results or report cards have been uploaded for {child.fullName} yet.</p>
+                        )}
+                    </div>
+                </AccordionContent>
+            </Card>
+        </AccordionItem>
+    );
+}
 
 
+function ParentResultsView({ children, terms }: { children: Student[], terms: Term[] }) {
     return (
         <Card>
             <CardHeader>
@@ -397,53 +439,7 @@ function ParentResultsView({ children, terms }: { children: Student[], terms: Te
                 {children.length === 0 && <p className="text-muted-foreground">You do not have any children linked to this account.</p>}
                 <Accordion type="multiple" className="w-full space-y-4">
                     {children.map(child => (
-                        <AccordionItem value={child.id} key={child.id} className="border-b-0">
-                             <Card className="overflow-hidden">
-                                <AccordionTrigger className="p-6 hover:no-underline bg-muted/50">
-                                    <div className="flex items-center gap-4">
-                                        <GraduationCap className="h-6 w-6 text-primary" />
-                                        <p className="font-semibold text-lg">{child.fullName}</p>
-                                    </div>
-                                </AccordionTrigger>
-                                <AccordionContent className="p-0">
-                                    <div className="p-6">
-                                    {terms.map(term => {
-                                        const termResults = resultsByChild[child.id]?.results.filter(r => r.termId === term.id);
-                                        const termReportCard = reportCardsByChild[child.id]?.reportCards.find(rc => rc.termId === term.id);
-                                        
-                                        if (termResults.length === 0 && !termReportCard) return null;
-                                        
-                                        return (
-                                            <div key={term.id} className="mb-8">
-                                                <h4 className="font-bold text-lg mb-2 border-b pb-2">{term.name}</h4>
-                                                {termResults.length > 0 && (
-                                                     <Table>
-                                                        <TableHeader><TableRow><TableHead>Subject</TableHead><TableHead>Marks</TableHead><TableHead>Grade</TableHead></TableRow></TableHeader>
-                                                        <TableBody>
-                                                            {termResults.map(r => (
-                                                                <TableRow key={r.id}><TableCell>{r.subjectName}</TableCell><TableCell>{r.marks}</TableCell><TableCell>{r.grade}</TableCell></TableRow>
-                                                            ))}
-                                                        </TableBody>
-                                                    </Table>
-                                                )}
-                                                {termReportCard && (
-                                                    <div className="mt-4">
-                                                        <h5 className="font-semibold mb-2">Full Report Card</h5>
-                                                        <Button asChild variant="outline">
-                                                            <a href={termReportCard.imageUrl} target="_blank" rel="noopener noreferrer">View Uploaded Report</a>
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                     {resultsByChild[child.id]?.results.length === 0 && reportCardsByChild[child.id]?.reportCards.length === 0 && (
-                                         <p className="text-muted-foreground text-center py-8">No results or report cards have been uploaded for {child.fullName} yet.</p>
-                                     )}
-                                    </div>
-                                </AccordionContent>
-                             </Card>
-                        </AccordionItem>
+                        <ChildResults key={child.id} child={child} terms={terms} />
                     ))}
                 </Accordion>
             </CardContent>
@@ -561,3 +557,5 @@ export default function ResultsPage() {
     </div>
   );
 }
+
+    
