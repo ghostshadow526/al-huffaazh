@@ -100,7 +100,7 @@ export default function DashboardLayout({ user, children }: { user: User; childr
             <SidebarMenuItem>
                 <div className="flex items-center gap-3 p-2 group-data-[state=collapsed]:p-0 group-data-[state=collapsed]:justify-center">
                     <Avatar className="group-data-[state=collapsed]:w-8 group-data-[state=collapsed]:h-8">
-                        <AvatarImage src={user.photoURL || ''} alt={user.fullName || 'User'}/>
+                        <AvatarImage src={user.photoURL || undefined} alt={user.fullName || 'User'}/>
                         <AvatarFallback>{getInitials(user.fullName || user.email)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col text-sm group-data-[state=collapsed]:hidden">
