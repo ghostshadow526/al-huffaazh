@@ -17,8 +17,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, Trash2, KeyRound } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { deleteUser, resetUserPassword } from '@/app/actions/user-actions';
+import { deleteUser } from '@/app/actions/user-actions';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 
 
 interface UserTableProps {
@@ -42,10 +43,11 @@ const columnHeaders: Record<string, string> = {
 export function UserTable({ data, columns, isLoading }: UserTableProps) {
   const { user: currentUser } = useAuth();
   const { toast } = useToast();
+  const auth = getAuth();
 
   const handlePasswordReset = async (email: string) => {
     try {
-      await resetUserPassword({ email });
+      await sendPasswordResetEmail(auth, email);
       toast({
         title: 'Success',
         description: `Password reset link sent to ${email}.`,
