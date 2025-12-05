@@ -3,7 +3,7 @@
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, setDoc, Unsubscribe } from 'firebase/firestore';
 import { Logo } from './logo';
 import { useUser, useFirestore } from '@/firebase';
 
@@ -30,17 +30,22 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const db = useFirestore();
 
   useEffect(() => {
+    let unsubscribe: Unsubscribe | undefined;
+
     const handleUser = async () => {
       if (firebaseUser && db) {
         const userDocRef = doc(db, 'users', firebaseUser.uid);
-        const userDoc = await getDoc(userDocRef);
-        if (userDoc.exists()) {
-          setUser({ ...firebaseUser, ...userDoc.data() } as User);
-        } else {
-           const superAdminEmail = "alhuffazh@gmail.com";
-           const adminToken = "4MPWGavMNqZLtdUGqtWvUYY0xDL2";
+        
+        // Set up a real-time listener
+        unsubscribe = onSnapshot(userDocRef, async (userDoc) => {
+          if (userDoc.exists()) {
+            setUser({ ...firebaseUser, ...userDoc.data() } as User);
+          } else {
+            // This logic handles the initial creation of the super_admin document
+            const superAdminEmail = "alhuffazh@gmail.com";
+            const adminToken = "4MPWGavMNqZLtdUGqtWvUYY0xDL2";
 
-           if(firebaseUser.email === superAdminEmail && firebaseUser.uid === adminToken) {
+            if (firebaseUser.email === superAdminEmail && firebaseUser.uid === adminToken) {
               const superAdminUser = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
@@ -48,21 +53,42 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
                 role: 'super_admin' as const,
                 status: 'active' as const,
               };
-              await setDoc(userDocRef, superAdminUser);
-              setUser({ ...firebaseUser, ...superAdminUser });
-           } else {
-             setUser(firebaseUser as User); 
-           }
-        }
+              try {
+                await setDoc(userDocRef, superAdminUser);
+                // The listener will pick up this change and set the user state
+              } catch (e) {
+                console.error("Failed to create super_admin user document:", e);
+                setUser(firebaseUser as User); // Fallback
+              }
+            } else {
+              // User is authenticated but has no Firestore document
+              setUser(firebaseUser as User);
+            }
+          }
+          setLoading(false);
+        }, (error) => {
+           console.error("Error listening to user document:", error);
+           setUser(firebaseUser as User); // Fallback to auth user on listener error
+           setLoading(false);
+        });
+
       } else {
+        // No authenticated user
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     if (!isUserLoading) {
-        handleUser();
+      handleUser();
     }
+
+    // Cleanup: unsubscribe from the listener when the component unmounts or user changes
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [firebaseUser, isUserLoading, db]);
 
   if (loading) {

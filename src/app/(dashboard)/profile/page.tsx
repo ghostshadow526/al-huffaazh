@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Loader2, KeyRound } from 'lucide-react';
 import Image from 'next/image';
-import { resetUserPassword } from '@/app/actions/user-actions';
 import { Separator } from '@/components/ui/separator';
 
 const imageKitAuthenticator = async () => {
@@ -77,10 +76,9 @@ export default function ProfilePage() {
             });
             toast({
                 title: 'Profile Updated',
-                description: 'Your profile picture has been successfully updated. It may take a moment to reflect everywhere.',
+                description: 'Your profile picture has been successfully updated.',
             });
-            // Optionally force a reload or wait for the AuthProvider to update
-            window.location.reload(); 
+            setNewPhotoUrl(null); // Reset preview after saving
         } catch (error: any) {
             toast({
                 variant: 'destructive',
