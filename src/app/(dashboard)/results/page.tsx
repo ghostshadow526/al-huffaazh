@@ -6,7 +6,7 @@ import { useAuth } from '@/components/auth-provider';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, where, writeBatch, doc, getDocs, serverTimestamp, setDoc, getDoc, addDoc } from 'firebase/firestore';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { IKContext, IKUpload } from 'imagekitio-react';
@@ -25,7 +25,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Loader2, UploadCloud, PlusCircle, Check, Trash2, GraduationCap } from 'lucide-react';
 import { Combobox } from '@/components/ui/combobox';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '@/components/ui/form';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 
 // --- Data Schemas and Interfaces ---
 
@@ -62,7 +63,7 @@ interface Result {
 interface ReportCard {
     id: string;
     termId: string;
-    termName: string;
+    studentName: string;
     imageUrl: string;
 }
 
@@ -103,6 +104,7 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNewSubjectDialog, setShowNewSubjectDialog] = useState(false);
+  const [currentGrade, setCurrentGrade] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof resultSchema>>({
     resolver: zodResolver(resultSchema),
@@ -113,6 +115,16 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
       resolver: zodResolver(newSubjectSchema),
       defaultValues: { name: "", category: 'general' }
   });
+
+  const watchedMarks = useWatch({ control: form.control, name: 'marks' });
+
+  useEffect(() => {
+    if (typeof watchedMarks === 'number' && watchedMarks >= 0 && watchedMarks <= 100) {
+      setCurrentGrade(getGrade(watchedMarks));
+    } else {
+      setCurrentGrade(null);
+    }
+  }, [watchedMarks]);
 
   const onSubmit = async (values: z.infer<typeof resultSchema>) => {
     if (!user || !firestore) return;
@@ -223,7 +235,15 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
           <FormField control={form.control} name="marks" render={({ field }) => (
             <FormItem>
               <Label>Marks Obtained (out of 100)</Label>
-              <Input type="number" {...field} />
+                <div className="flex items-center gap-4">
+                    <Input type="number" {...field} />
+                    {currentGrade && (
+                        <div className="flex items-center gap-2">
+                           <span className="font-semibold text-lg">{currentGrade}</span>
+                           <span className="text-sm text-muted-foreground">Grade</span>
+                        </div>
+                    )}
+                </div>
               <FormMessage />
             </FormItem>
           )}/>
@@ -233,6 +253,56 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
           </Button>
         </form>
       </Form>
+      
+      <Dialog open={showNewSubjectDialog} onOpenChange={setShowNewSubjectDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add a New Subject</DialogTitle>
+            <DialogDescription>
+              This subject will be available for all teachers when entering results.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...newSubjectForm}>
+            <form onSubmit={newSubjectForm.handleSubmit(handleAddNewSubject)} className="space-y-4 py-4">
+                 <FormField
+                    control={newSubjectForm.control}
+                    name="name"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Subject Name</FormLabel>
+                        <FormControl><Input placeholder="e.g., Further Mathematics" {...field} /></FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                 />
+                 <FormField
+                    control={newSubjectForm.control}
+                    name="category"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Category</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                <SelectItem value="core">Core Subject</SelectItem>
+                                <SelectItem value="islamic">Islamic Subject</SelectItem>
+                                <SelectItem value="general">General Subject</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                 />
+                <DialogFooter>
+                    <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
+                    <Button type="submit">Save Subject</Button>
+                </DialogFooter>
+            </form>
+           </Form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -275,6 +345,8 @@ function ReportCardUploadForm({ students, terms }: { students: Student[], terms:
       await addDoc(collection(firestore, 'reportCards'), {
         ...values,
         studentName: student.fullName,
+        termId: terms.find(t => t.id === values.termId)?.id,
+        termName: terms.find(t => t.id === values.termId)?.name,
         branchId: student.branchId,
         uploadedBy: user.uid,
         uploadedAt: serverTimestamp(),
@@ -396,8 +468,16 @@ function ChildResults({ child, terms }: { child: Student, terms: Term[] }) {
     }, {} as Record<string, ReportCard>) || {};
 
     const allTermIds = new Set([...Object.keys(resultsByTerm), ...Object.keys(reportCardsByTerm)]);
-    const allTerms = Array.from(allTermIds).map(id => ({ id, name: resultsByTerm[id]?.name || reportCardsByTerm[id]?.termName || 'Unknown Term'}));
+    
+    // Sort terms. Assuming term IDs like 't1-24-25', 't2-24-25'.
+    const sortedTermIds = Array.from(allTermIds).sort((a, b) => {
+        // A simple sort that should work for the current format.
+        // It could be made more robust if term IDs become more complex.
+        return a.localeCompare(b);
+    });
 
+    const allTerms = sortedTermIds.map(id => ({ id, name: resultsByTerm[id]?.name || reportCards.find(rc => rc.termId === id)?.termName || 'Unknown Term'}));
+    
     return (
         <AccordionItem value={child.id} key={child.id} className="border-b-0">
             <Card className="overflow-hidden">
@@ -543,7 +623,7 @@ export default function ResultsPage() {
   if (!user) return <p>Loading...</p>;
 
   const handleNewSubject = (newSubject: Subject) => {
-    setSubjects(prev => [...prev, newSubject]);
+    setSubjects(prev => [...prev, newSubject].sort((a, b) => a.name.localeCompare(b.name)));
   };
   
   const handleNewResult = () => {
@@ -579,3 +659,5 @@ export default function ResultsPage() {
     </div>
   );
 }
+
+    
