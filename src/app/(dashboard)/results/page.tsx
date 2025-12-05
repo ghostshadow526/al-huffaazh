@@ -168,7 +168,7 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
   const handleAddNewSubject = async (values: z.infer<typeof newSubjectSchema>) => {
       if (!firestore) return;
       
-      const newSubjectId = values.name.toLowerCase().replace(/ /g, '-');
+      const newSubjectId = `${values.name.toLowerCase().replace(/ /g, '-')}-${Date.now()}`;
       const subjectRef = doc(firestore, 'subjects', newSubjectId);
       
       const newSubject: Subject = {
@@ -199,16 +199,18 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
           <div className="grid md:grid-cols-2 gap-6">
             <FormField control={form.control} name="studentId" render={({ field }) => (
               <FormItem>
-                <Label>Student</Label>
+                <FormLabel>Student</FormLabel>
                 <Combobox options={studentOptions} onSelect={field.onChange} placeholder="Select student..." searchText="Search students..."/>
                 <FormMessage />
               </FormItem>
             )}/>
             <FormField control={form.control} name="termId" render={({ field }) => (
               <FormItem>
-                <Label>Term</Label>
+                <FormLabel>Term</FormLabel>
                 <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
+                  <FormControl>
+                    <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
+                  </FormControl>
                   <SelectContent>{termOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                 </Select>
                  <FormMessage />
@@ -218,9 +220,11 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
           <div className="grid md:grid-cols-2 gap-6 items-end">
               <FormField control={form.control} name="subjectId" render={({ field }) => (
                 <FormItem>
-                    <Label>Subject</Label>
+                    <FormLabel>Subject</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger><SelectValue placeholder="Select subject" /></SelectTrigger>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="Select subject" /></SelectTrigger>
+                    </FormControl>
                     <SelectContent>{subjectOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                     </Select>
                     <FormMessage />
@@ -234,9 +238,11 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
 
           <FormField control={form.control} name="marks" render={({ field }) => (
             <FormItem>
-              <Label>Marks Obtained (out of 100)</Label>
+              <FormLabel>Marks Obtained (out of 100)</FormLabel>
                 <div className="flex items-center gap-4">
-                    <Input type="number" {...field} />
+                    <FormControl>
+                      <Input type="number" {...field} />
+                    </FormControl>
                     {currentGrade && (
                         <div className="flex items-center gap-2">
                            <span className="font-semibold text-lg">{currentGrade}</span>
@@ -370,7 +376,7 @@ function ReportCardUploadForm({ students, terms }: { students: Student[], terms:
         <FormField control={form.control} name="imageUrl" render={({ field }) => (
           <FormItem className="flex flex-col items-center gap-4 rounded-lg border-2 border-dashed p-8 text-center">
             <UploadCloud className="h-12 w-12 text-muted-foreground" />
-            <Label className="font-semibold">{photoUrl ? 'Report Uploaded!' : 'Click to Upload Report Card'}</Label>
+            <FormLabel className="font-semibold">{photoUrl ? 'Report Uploaded!' : 'Click to Upload Report Card'}</FormLabel>
             <IKContext publicKey={process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY} urlEndpoint={process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT} authenticator={imageKitAuthenticator}>
               <IKUpload ref={ikUploadRef} fileName={`report_${form.getValues('studentId') || 'student'}.jpg`} folder="/reports" onUploadStart={() => setIsUploading(true)} onSuccess={onUploadSuccess} onError={onUploadError} style={{ display: 'none' }} />
               <Button type="button" variant="outline" onClick={() => ikUploadRef.current?.click()} disabled={isUploading}>{isUploading ? 'Uploading...' : (photoUrl ? 'Change File' : 'Choose File')}</Button>
@@ -382,16 +388,18 @@ function ReportCardUploadForm({ students, terms }: { students: Student[], terms:
         <div className="grid md:grid-cols-2 gap-6">
            <FormField control={form.control} name="studentId" render={({ field }) => (
               <FormItem>
-                <Label>Student</Label>
+                <FormLabel>Student</FormLabel>
                 <Combobox options={studentOptions} onSelect={field.onChange} placeholder="Select student..." searchText="Search students..."/>
                 <FormMessage />
               </FormItem>
             )}/>
             <FormField control={form.control} name="termId" render={({ field }) => (
               <FormItem>
-                <Label>Term</Label>
+                <FormLabel>Term</FormLabel>
                 <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
+                  <FormControl>
+                    <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
+                  </FormControl>
                   <SelectContent>{termOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
                 </Select>
                  <FormMessage />
@@ -661,3 +669,4 @@ export default function ResultsPage() {
 }
 
     
+
