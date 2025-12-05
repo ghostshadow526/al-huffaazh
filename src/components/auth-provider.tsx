@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
@@ -39,7 +40,8 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         // Set up a real-time listener
         unsubscribe = onSnapshot(userDocRef, async (userDoc) => {
           if (userDoc.exists()) {
-            setUser({ ...firebaseUser, ...userDoc.data() } as User);
+            const userData = userDoc.data();
+            setUser({ ...firebaseUser, ...userData } as User);
           } else {
             // This logic handles the initial creation of the super_admin document
             const superAdminEmail = "alhuffazh@gmail.com";

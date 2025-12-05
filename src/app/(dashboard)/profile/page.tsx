@@ -73,10 +73,9 @@ export default function ProfilePage() {
         setIsSaving(true);
         try {
             const userDocRef = doc(firestore, 'users', user.uid);
-            // Save the URL without the cache-busting query parameter
-            const finalUrl = newPhotoUrl.split('?')[0];
+            // Save the URL WITH the cache-busting query parameter
             await updateDoc(userDocRef, {
-                photoURL: finalUrl,
+                photoURL: newPhotoUrl,
             });
             toast({
                 title: 'Profile Updated',
@@ -118,7 +117,7 @@ export default function ProfilePage() {
                         <div className="space-y-2">
                             <h2 className="text-2xl font-bold">{user.fullName}</h2>
                             <p className="text-muted-foreground">{user.email}</p>
-                            <p className="text-sm font-medium capitalize text-accent">{user.role?.replace('_', ' ')}</p>
+                            <p className="text-sm font-medium capitalize text-accent-foreground">{user.role?.replace('_', ' ')}</p>
                         </div>
                     </div>
 
