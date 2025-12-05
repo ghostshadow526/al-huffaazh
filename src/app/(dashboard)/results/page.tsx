@@ -171,8 +171,7 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
       const newSubjectId = `${values.name.toLowerCase().replace(/ /g, '-')}-${Date.now()}`;
       const subjectRef = doc(firestore, 'subjects', newSubjectId);
       
-      const newSubject: Subject = {
-          id: newSubjectId,
+      const newSubject: Omit<Subject, 'id'> = {
           name: values.name,
           category: values.category
       };
@@ -180,7 +179,7 @@ function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAd
       try {
           await setDoc(subjectRef, newSubject);
           toast({ title: "Subject Added", description: `${values.name} has been added to the list.`});
-          onSubjectAdded(newSubject);
+          onSubjectAdded({id: newSubjectId, ...newSubject}); // This will now just trigger a re-fetch, not directly manipulate state
           newSubjectForm.reset();
           setShowNewSubjectDialog(false);
       } catch (error: any) {
@@ -623,15 +622,11 @@ export default function ResultsPage() {
   const { data: termsData, isLoading: termsLoading } = useCollection<Term>(termsQuery);
   const { data: subjectsData, isLoading: subjectsLoading } = useCollection<Subject>(subjectsQuery);
 
-  const [subjects, setSubjects] = useState<Subject[]>(subjectsData || []);
-  useEffect(() => {
-      if(subjectsData) setSubjects(subjectsData);
-  }, [subjectsData]);
-
   if (!user) return <p>Loading...</p>;
 
-  const handleNewSubject = (newSubject: Subject) => {
-    setSubjects(prev => [...prev, newSubject].sort((a, b) => a.name.localeCompare(b.name)));
+  const handleNewSubject = () => {
+    // Just trigger a re-fetch, don't add to local state
+    setDataVersion(v => v + 1);
   };
   
   const handleNewResult = () => {
@@ -658,7 +653,7 @@ export default function ResultsPage() {
         <TeacherAdminView 
             students={students || []} 
             terms={termsData || []} 
-            subjects={subjects || []}
+            subjects={subjectsData || []}
             onResultAdded={handleNewResult}
             onSubjectAdded={handleNewSubject}
             isLoading={isDataLoading}
@@ -669,4 +664,3 @@ export default function ResultsPage() {
 }
 
     
-
