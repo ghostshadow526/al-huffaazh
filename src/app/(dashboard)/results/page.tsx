@@ -27,10 +27,10 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '
 
 const subjectResultSchema = z.object({
   subject_name: z.string().min(1, 'Subject name is required.'),
-  ca_score: z.coerce.number().min(0).max(20).optional().default(0),
-  assignment_score: z.coerce.number().min(0).max(20).optional().default(0),
-  exam_score: z.coerce.number().min(0).max(60).optional().default(0),
-  total_score: z.coerce.number().min(0).max(100).optional().default(0),
+  ca_score: z.coerce.number().min(0).optional().default(0),
+  assignment_score: z.coerce.number().min(0).optional().default(0),
+  exam_score: z.coerce.number().min(0).optional().default(0),
+  total_score: z.coerce.number().min(0).optional().default(0),
   grade: z.string().optional().default(''),
 });
 
