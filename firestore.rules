@@ -67,7 +67,8 @@ service cloud.firestore {
     }
     
     function isParentOfStudentInResult(resultId) {
-       return isParent() && get(/databases/$(database)/documents/results/$(resultId)).data.studentId != null && get(/databases/$(database)/documents/students/$(get(/databases/$(database)/documents/results/$(resultId)).data.studentId)).data.parentUserId == request.auth.uid;
+       let studentId = get(/databases/$(database)/documents/results/$(resultId)).data.studentId;
+       return isParent() && studentId != null && get(/databases/$(database)/documents/students/$(studentId)).data.parentUserId == request.auth.uid;
     }
 
     function isParentOfReceipt(receiptId) {
@@ -137,8 +138,8 @@ service cloud.firestore {
     }
     
     match /results/{resultId} {
-        allow get, list: if isTeacherOfResult(resultId) || isBranchAdmin() || isSuperAdmin() || isParentOfStudentInResult(resultId);
-        allow create, update: if isTeacher() || isBranchAdmin() || isSuperAdmin();
+        allow get, list: if isTeacherOfResult(resultId) || (isBranchAdmin() && getUserData(request.auth.uid).branchId == get(/databases/$(database)/documents/results/$(resultId)).data.branchId) || isSuperAdmin() || isParentOfStudentInResult(resultId);
+        allow create, update: if (isTeacher() && request.resource.data.branchId == getUserData(request.auth.uid).branchId) || isBranchAdmin() || isSuperAdmin();
         allow delete: if isSuperAdmin() || isBranchAdmin();
     }
 

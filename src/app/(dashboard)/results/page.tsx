@@ -1,16 +1,13 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, where, writeBatch, doc, getDocs, serverTimestamp, setDoc, getDoc, addDoc } from 'firebase/firestore';
-import { useForm, useWatch } from 'react-hook-form';
+import { collection, query, where, writeBatch, doc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { IKContext, IKUpload } from 'imagekitio-react';
-import Image from 'next/image';
 
 import type { Student } from '../students/student-table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -18,34 +15,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, UploadCloud, PlusCircle, Check, Trash2, GraduationCap } from 'lucide-react';
+import { Loader2, Trash2, GraduationCap, PlusCircle, MinusCircle } from 'lucide-react';
 import { Combobox } from '@/components/ui/combobox';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '@/components/ui/form';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 
 // --- Data Schemas and Interfaces ---
 
-const resultSchema = z.object({
-  studentId: z.string().min(1, 'Student is required.'),
-  termId: z.string().min(1, 'Term is required.'),
-  subjectId: z.string().min(1, 'Subject is required.'),
-  marks: z.coerce.number().min(0, 'Marks must be positive.').max(100, 'Marks cannot exceed 100.'),
+const subjectResultSchema = z.object({
+  subject_name: z.string().min(1, 'Subject name is required.'),
+  ca_score: z.coerce.number().min(0).max(40).optional().default(0),
+  exam_score: z.coerce.number().min(0).max(60).optional().default(0),
+  total_score: z.coerce.number().min(0).max(100).optional().default(0),
+  grade: z.string().optional().default(''),
 });
 
-const reportCardSchema = z.object({
+const bulkResultsSchema = z.object({
   studentId: z.string().min(1, 'Student is required.'),
   termId: z.string().min(1, 'Term is required.'),
-  imageUrl: z.string().url('Report card image is required.'),
-});
-
-const newSubjectSchema = z.object({
-    name: z.string().min(3, "Subject name must be at least 3 characters."),
-    category: z.enum(['core', 'islamic', 'general']),
+  results: z.array(subjectResultSchema).min(1, 'At least one subject is required.'),
+  position: z.string().optional(),
 });
 
 interface Result {
@@ -54,17 +45,11 @@ interface Result {
   studentName: string;
   termId: string;
   termName: string;
-  subjectId: string;
-  subjectName: string;
-  marks: number;
+  subject_name: string;
+  ca_score: number;
+  exam_score: number;
+  total_score: number;
   grade: string;
-}
-
-interface ReportCard {
-    id: string;
-    termId: string;
-    studentName: string;
-    imageUrl: string;
 }
 
 interface Term {
@@ -72,374 +57,238 @@ interface Term {
   name: string;
 }
 
-interface Subject {
-  id: string;
-  name: string;
-  category: string;
-}
-
 const getGrade = (marks: number): string => {
-  if (marks >= 90) return 'A+';
-  if (marks >= 80) return 'A';
-  if (marks >= 70) return 'B';
-  if (marks >= 60) return 'C';
-  if (marks >= 50) return 'D';
+  if (marks >= 75) return 'A';
+  if (marks >= 65) return 'B';
+  if (marks >= 55) return 'C';
+  if (marks >= 45) return 'D';
   if (marks >= 40) return 'E';
   return 'F';
 };
 
 
-const imageKitAuthenticator = async () => {
-    const response = await fetch('/api/imagekit/auth');
-    const result = await response.json();
-    return result;
-};
-
-
 // --- Child Components ---
+function BulkResultEntryForm({ students, terms, onResultAdded }: { students: Student[], terms: Term[], onResultAdded: () => void }) {
+    const { user } = useAuth();
+    const firestore = useFirestore();
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-function ResultEntryForm({ students, terms, subjects, onResultAdded, onSubjectAdded }: { students: Student[], terms: Term[], subjects: Subject[], onResultAdded: () => void, onSubjectAdded: (newSubject: Subject) => void }) {
-  const { user } = useAuth();
-  const firestore = useFirestore();
-  const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showNewSubjectDialog, setShowNewSubjectDialog] = useState(false);
-  const [currentGrade, setCurrentGrade] = useState<string | null>(null);
+    const form = useForm<z.infer<typeof bulkResultsSchema>>({
+        resolver: zodResolver(bulkResultsSchema),
+        defaultValues: {
+            studentId: '',
+            termId: '',
+            results: [{ subject_name: 'English Language', ca_score: 0, exam_score: 0 }],
+            position: '',
+        },
+    });
 
-  const form = useForm<z.infer<typeof resultSchema>>({
-    resolver: zodResolver(resultSchema),
-    defaultValues: { studentId: '', termId: '', subjectId: '', marks: 0 },
-  });
-  
-  const newSubjectForm = useForm<z.infer<typeof newSubjectSchema>>({
-      resolver: zodResolver(newSubjectSchema),
-      defaultValues: { name: "", category: 'general' }
-  });
+    const { fields, append, remove } = useFieldArray({
+        control: form.control,
+        name: 'results',
+    });
 
-  const watchedMarks = useWatch({ control: form.control, name: 'marks' });
+    const watchedResults = useWatch({ control: form.control, name: 'results' });
 
-  useEffect(() => {
-    if (typeof watchedMarks === 'number' && watchedMarks >= 0 && watchedMarks <= 100) {
-      setCurrentGrade(getGrade(watchedMarks));
-    } else {
-      setCurrentGrade(null);
-    }
-  }, [watchedMarks]);
+    useEffect(() => {
+        watchedResults.forEach((result, index) => {
+            const ca = result.ca_score || 0;
+            const exam = result.exam_score || 0;
+            const total = ca + exam;
+            if (result.total_score !== total) {
+                form.setValue(`results.${index}.total_score`, total);
+                form.setValue(`results.${index}.grade`, getGrade(total));
+            }
+        });
+    }, [watchedResults, form]);
 
-  const onSubmit = async (values: z.infer<typeof resultSchema>) => {
-    if (!user || !firestore) return;
-    setIsSubmitting(true);
+    const overallTotal = useMemo(() => {
+        return watchedResults.reduce((sum, result) => sum + (result.total_score || 0), 0);
+    }, [watchedResults]);
+
+    const overallAverage = useMemo(() => {
+        const validSubjects = watchedResults.filter(r => r.subject_name && r.total_score! > 0);
+        if (validSubjects.length === 0) return 0;
+        return overallTotal / validSubjects.length;
+    }, [watchedResults, overallTotal]);
+
+    const onSubmit = async (values: z.infer<typeof bulkResultsSchema>) => {
+        if (!user || !firestore) return;
+        setIsSubmitting(true);
+        
+        const student = students.find(s => s.id === values.studentId);
+        const term = terms.find(t => t.id === values.termId);
+
+        if (!student || !term) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Invalid student or term selected.' });
+            setIsSubmitting(false);
+            return;
+        }
+
+        try {
+            const batch = writeBatch(firestore);
+
+            values.results.forEach(result => {
+                if (result.subject_name) {
+                    const resultId = `${values.studentId}_${values.termId}_${result.subject_name.toLowerCase().replace(/\s/g, '_')}`;
+                    const resultRef = doc(firestore, 'results', resultId);
+                    batch.set(resultRef, {
+                        studentId: values.studentId,
+                        studentName: student.fullName,
+                        termId: values.termId,
+                        termName: term.name,
+                        branchId: student.branchId,
+                        subject_name: result.subject_name,
+                        ca_score: result.ca_score || 0,
+                        exam_score: result.exam_score || 0,
+                        total_score: result.total_score || 0,
+                        grade: getGrade(result.total_score || 0),
+                        position: values.position || '',
+                        recordedBy: user.uid,
+                        recordedAt: serverTimestamp(),
+                    });
+                }
+            });
+
+            await batch.commit();
+
+            toast({ title: 'Success', description: 'All results have been saved.' });
+            form.reset();
+            onResultAdded();
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Failed to save results', description: error.message });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
     
-    const student = students.find(s => s.id === values.studentId);
-    const term = terms.find(t => t.id === values.termId);
-    const subject = subjects.find(s => s.id === values.subjectId);
+    const studentOptions = students.map(s => ({ value: s.id, label: `${s.fullName} (${s.admissionNo})` }));
+    const termOptions = terms.map(t => ({ value: t.id, label: t.name }));
 
-    if (!student || !term || !subject) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Invalid student, term, or subject selected.' });
-        setIsSubmitting(false);
-        return;
-    }
+    return (
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Student & Term</CardTitle>
+                        <CardDescription>Select the student and the academic term for these results.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid md:grid-cols-2 gap-6">
+                        <FormField control={form.control} name="studentId" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Student</FormLabel>
+                                <Combobox options={studentOptions} onSelect={field.onChange} placeholder="Select student..." searchText="Search students..." />
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="termId" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Term</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>{termOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                    </CardContent>
+                </Card>
 
-    try {
-      const resultId = `${values.studentId}_${values.termId}_${values.subjectId}`;
-      const resultRef = doc(firestore, 'results', resultId);
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Enter Scores</CardTitle>
+                        <CardDescription>Add subjects and enter the scores for each. Totals and grades are calculated automatically.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-1/3">Subject Name</TableHead>
+                                    <TableHead>CA/Test (40)</TableHead>
+                                    <TableHead>Exam (60)</TableHead>
+                                    <TableHead>Total (100)</TableHead>
+                                    <TableHead>Grade</TableHead>
+                                    <TableHead>Action</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {fields.map((field, index) => (
+                                    <TableRow key={field.id}>
+                                        <TableCell>
+                                            <FormField control={form.control} name={`results.${index}.subject_name`} render={({ field }) => (
+                                                <FormItem><FormControl><Input {...field} placeholder="e.g. Mathematics" /></FormControl><FormMessage /></FormItem>
+                                            )} />
+                                        </TableCell>
+                                        <TableCell>
+                                            <FormField control={form.control} name={`results.${index}.ca_score`} render={({ field }) => (
+                                                <FormItem><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                                            )} />
+                                        </TableCell>
+                                        <TableCell>
+                                            <FormField control={form.control} name={`results.${index}.exam_score`} render={({ field }) => (
+                                                <FormItem><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                                            )} />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input type="number" {...form.register(`results.${index}.total_score`)} readOnly className="bg-muted" />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input {...form.register(`results.${index}.grade`)} readOnly className="bg-muted font-bold text-center" />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} disabled={fields.length <= 1}>
+                                                <MinusCircle className="h-5 w-5 text-destructive" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                         <Button type="button" variant="outline" size="sm" onClick={() => append({ subject_name: '', ca_score: 0, exam_score: 0 })} className="mt-4" disabled={fields.length >= 15}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Add Subject
+                        </Button>
+                    </CardContent>
+                </Card>
 
-      await setDoc(resultRef, {
-        ...values,
-        grade: getGrade(values.marks),
-        studentName: student.fullName,
-        termName: term.name,
-        subjectName: subject.name,
-        branchId: student.branchId,
-        recordedBy: user.uid,
-        recordedAt: serverTimestamp(),
-      }, { merge: true });
-
-      toast({ title: 'Success', description: 'Result has been saved.' });
-      form.reset();
-      onResultAdded();
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Failed to save result', description: error.message });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleAddNewSubject = async (values: z.infer<typeof newSubjectSchema>) => {
-      if (!firestore) return;
-      
-      const newSubjectId = `${values.name.toLowerCase().replace(/ /g, '-')}-${Date.now()}`;
-      const subjectRef = doc(firestore, 'subjects', newSubjectId);
-      
-      const newSubject: Omit<Subject, 'id'> = {
-          name: values.name,
-          category: values.category
-      };
-
-      try {
-          await setDoc(subjectRef, newSubject);
-          toast({ title: "Subject Added", description: `${values.name} has been added to the list.`});
-          onSubjectAdded({id: newSubjectId, ...newSubject}); // This will now just trigger a re-fetch, not directly manipulate state
-          newSubjectForm.reset();
-          setShowNewSubjectDialog(false);
-      } catch (error: any) {
-           toast({ variant: 'destructive', title: 'Failed to add subject', description: error.message });
-      }
-  }
-
-  const studentOptions = students.map(s => ({ value: s.id, label: `${s.fullName} (${s.admissionNo})` }));
-  const termOptions = terms.map(t => ({ value: t.id, label: t.name }));
-  const subjectOptions = subjects.map(s => ({ value: s.id, label: s.name }));
-
-  return (
-    <>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <FormField control={form.control} name="studentId" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Student</FormLabel>
-                <Combobox options={studentOptions} onSelect={field.onChange} placeholder="Select student..." searchText="Search students..."/>
-                <FormMessage />
-              </FormItem>
-            )}/>
-            <FormField control={form.control} name="termId" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Term</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
-                  </FormControl>
-                  <SelectContent>{termOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                </Select>
-                 <FormMessage />
-              </FormItem>
-            )}/>
-          </div>
-          <div className="grid md:grid-cols-2 gap-6 items-end">
-              <FormField control={form.control} name="subjectId" render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Subject</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Select subject" /></SelectTrigger>
-                    </FormControl>
-                    <SelectContent>{subjectOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                    <FormMessage />
-                </FormItem>
-                )}/>
-                 <Button type="button" variant="outline" onClick={() => setShowNewSubjectDialog(true)}>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Add New Subject
-                </Button>
-          </div>
-
-          <FormField control={form.control} name="marks" render={({ field }) => (
-            <FormItem>
-              <FormLabel>Marks Obtained (out of 100)</FormLabel>
-                <div className="flex items-center gap-4">
-                    <FormControl>
-                      <Input type="number" {...field} />
-                    </FormControl>
-                    {currentGrade && (
-                        <div className="flex items-center gap-2">
-                           <span className="font-semibold text-lg">{currentGrade}</span>
-                           <span className="text-sm text-muted-foreground">Grade</span>
-                        </div>
-                    )}
-                </div>
-              <FormMessage />
-            </FormItem>
-          )}/>
-
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Result
-          </Button>
-        </form>
-      </Form>
-      
-      <Dialog open={showNewSubjectDialog} onOpenChange={setShowNewSubjectDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add a New Subject</DialogTitle>
-            <DialogDescription>
-              This subject will be available for all teachers when entering results.
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...newSubjectForm}>
-            <form onSubmit={newSubjectForm.handleSubmit(handleAddNewSubject)} className="space-y-4 py-4">
-                 <FormField
-                    control={newSubjectForm.control}
-                    name="name"
-                    render={({ field }) => (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Overall Performance</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <FormItem>
-                        <FormLabel>Subject Name</FormLabel>
-                        <FormControl><Input placeholder="e.g., Further Mathematics" {...field} /></FormControl>
-                        <FormMessage />
+                            <FormLabel>Total Marks</FormLabel>
+                            <Input value={overallTotal.toFixed(2)} readOnly className="bg-muted font-bold" />
                         </FormItem>
-                    )}
-                 />
-                 <FormField
-                    control={newSubjectForm.control}
-                    name="category"
-                    render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Category</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                                <SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                                <SelectItem value="core">Core Subject</SelectItem>
-                                <SelectItem value="islamic">Islamic Subject</SelectItem>
-                                <SelectItem value="general">General Subject</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
+                            <FormLabel>Average (%)</FormLabel>
+                            <Input value={overallAverage.toFixed(2)} readOnly className="bg-muted font-bold" />
                         </FormItem>
-                    )}
-                 />
-                <DialogFooter>
-                    <DialogClose asChild><Button type="button" variant="ghost">Cancel</Button></DialogClose>
-                    <Button type="submit">Save Subject</Button>
-                </DialogFooter>
+                         <FormItem>
+                            <FormLabel>Overall Grade</FormLabel>
+                            <Input value={getGrade(overallAverage)} readOnly className="bg-muted font-bold" />
+                        </FormItem>
+                        <FormField control={form.control} name="position" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Position in Class</FormLabel>
+                                <FormControl><Input placeholder="e.g., 1st, 2nd, 3rd" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                    </CardContent>
+                    <CardFooter>
+                         <Button type="submit" disabled={isSubmitting} size="lg">
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save All Results
+                        </Button>
+                    </CardFooter>
+                </Card>
             </form>
-           </Form>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
+        </Form>
+    );
 }
 
-function ReportCardUploadForm({ students, terms }: { students: Student[], terms: Term[]}) {
-  const { user } = useAuth();
-  const firestore = useFirestore();
-  const { toast } = useToast();
-  const [isUploading, setIsUploading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState('');
-  const ikUploadRef = React.useRef<any>(null);
-
-  const form = useForm<z.infer<typeof reportCardSchema>>({
-    resolver: zodResolver(reportCardSchema),
-    defaultValues: { studentId: '', termId: '', imageUrl: '' },
-  });
-
-  useEffect(() => {
-    if (photoUrl) form.setValue('imageUrl', photoUrl);
-  }, [photoUrl, form]);
-
-  const onUploadSuccess = (ikResponse: any) => {
-    setPhotoUrl(ikResponse.url);
-    toast({ title: 'Upload Successful', description: 'Report card image uploaded.' });
-    setIsUploading(false);
-  };
-  const onUploadError = (err: any) => {
-    toast({ variant: 'destructive', title: 'Upload Failed', description: err.message });
-    setIsUploading(false);
-  };
-
-  const onSubmit = async (values: z.infer<typeof reportCardSchema>) => {
-    if (!user || !firestore) return;
-    const student = students.find(s => s.id === values.studentId);
-    if (!student) return;
-
-    setIsSubmitting(true);
-    try {
-      await addDoc(collection(firestore, 'reportCards'), {
-        ...values,
-        studentName: student.fullName,
-        termId: terms.find(t => t.id === values.termId)?.id,
-        termName: terms.find(t => t.id === values.termId)?.name,
-        branchId: student.branchId,
-        uploadedBy: user.uid,
-        uploadedAt: serverTimestamp(),
-      });
-      toast({ title: 'Success', description: 'Report card has been saved.' });
-      form.reset();
-      setPhotoUrl('');
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Failed to save report card', description: error.message });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const studentOptions = students.map(s => ({ value: s.id, label: `${s.fullName} (${s.admissionNo})` }));
-  const termOptions = terms.map(t => ({ value: t.id, label: t.name }));
-
-  return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <FormField control={form.control} name="imageUrl" render={({ field }) => (
-          <FormItem className="flex flex-col items-center gap-4 rounded-lg border-2 border-dashed p-8 text-center">
-            <UploadCloud className="h-12 w-12 text-muted-foreground" />
-            <FormLabel className="font-semibold">{photoUrl ? 'Report Uploaded!' : 'Click to Upload Report Card'}</FormLabel>
-            <IKContext publicKey={process.env.NEXT_PUBLIC_IMAGEKIT_PUBLIC_KEY} urlEndpoint={process.env.NEXT_PUBLIC_IMAGEKIT_URL_ENDPOINT} authenticator={imageKitAuthenticator}>
-              <IKUpload ref={ikUploadRef} fileName={`report_${form.getValues('studentId') || 'student'}.jpg`} folder="/reports" onUploadStart={() => setIsUploading(true)} onSuccess={onUploadSuccess} onError={onUploadError} style={{ display: 'none' }} />
-              <Button type="button" variant="outline" onClick={() => ikUploadRef.current?.click()} disabled={isUploading}>{isUploading ? 'Uploading...' : (photoUrl ? 'Change File' : 'Choose File')}</Button>
-            </IKContext>
-            {photoUrl && <Image src={photoUrl} alt="Report preview" width={120} height={150} className="rounded-md object-contain border p-1" />}
-             <FormMessage />
-          </FormItem>
-        )}/>
-        <div className="grid md:grid-cols-2 gap-6">
-           <FormField control={form.control} name="studentId" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Student</FormLabel>
-                <Combobox options={studentOptions} onSelect={field.onChange} placeholder="Select student..." searchText="Search students..."/>
-                <FormMessage />
-              </FormItem>
-            )}/>
-            <FormField control={form.control} name="termId" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Term</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger><SelectValue placeholder="Select term" /></SelectTrigger>
-                  </FormControl>
-                  <SelectContent>{termOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                </Select>
-                 <FormMessage />
-              </FormItem>
-            )}/>
-        </div>
-        <Button type="submit" disabled={isSubmitting || isUploading}>
-          {(isSubmitting || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save Report Card
-        </Button>
-      </form>
-    </Form>
-  );
-}
-
-
-function TeacherAdminView({ students, terms, subjects, onResultAdded, onSubjectAdded, isLoading }: { students: Student[], terms: Term[], subjects: Subject[], onResultAdded: () => void, onSubjectAdded: (newSubject: Subject) => void, isLoading: boolean }) {
-    if (isLoading) {
-        return <Card><CardHeader><Skeleton className="h-8 w-48" /></CardHeader><CardContent><Skeleton className="h-64 w-full" /></CardContent></Card>
-    }
-
-  return (
-    <Tabs defaultValue="enter-scores">
-      <TabsList>
-        <TabsTrigger value="enter-scores">Enter Individual Scores</TabsTrigger>
-        <TabsTrigger value="upload-report">Upload Full Report Card</TabsTrigger>
-      </TabsList>
-      <TabsContent value="enter-scores">
-        <Card>
-          <CardHeader><CardTitle>Enter Student Scores</CardTitle><CardDescription>Enter results for a single subject and student.</CardDescription></CardHeader>
-          <CardContent><ResultEntryForm students={students} terms={terms} subjects={subjects} onResultAdded={onResultAdded} onSubjectAdded={onSubjectAdded} /></CardContent>
-        </Card>
-      </TabsContent>
-      <TabsContent value="upload-report">
-        <Card>
-          <CardHeader><CardTitle>Upload Report Card</CardTitle><CardDescription>Upload a scanned image of the full termly report card.</CardDescription></CardHeader>
-          <CardContent><ReportCardUploadForm students={students} terms={terms} /></CardContent>
-        </Card>
-      </TabsContent>
-    </Tabs>
-  );
-}
 
 function ChildResults({ child, terms }: { child: Student, terms: Term[] }) {
     const firestore = useFirestore();
@@ -449,41 +298,20 @@ function ChildResults({ child, terms }: { child: Student, terms: Term[] }) {
         return query(collection(firestore, 'results'), where('studentId', '==', child.id));
     }, [firestore, child.id]);
 
-    const reportCardsQuery = useMemoFirebase(() => {
-        if (!firestore) return null;
-        return query(collection(firestore, 'reportCards'), where('studentId', '==', child.id));
-    }, [firestore, child.id]);
-
     const { data: results, isLoading: resultsLoading } = useCollection<Result>(resultsQuery);
-    const { data: reportCards, isLoading: reportCardsLoading } = useCollection<ReportCard>(reportCardsQuery);
 
-    const isLoading = resultsLoading || reportCardsLoading;
-
-    if (isLoading) {
-        return <Skeleton className="h-24 w-full" />
+    if (resultsLoading) {
+        return <Skeleton className="h-24 w-full" />;
     }
 
-    // Group results by term
     const resultsByTerm = results?.reduce((acc, result) => {
-        (acc[result.termId] = acc[result.termId] || { name: result.termName, results: [] }).results.push(result);
+        const termName = result.termName || 'Unknown Term';
+        if (!acc[termName]) {
+            acc[termName] = [];
+        }
+        acc[termName].push(result);
         return acc;
-    }, {} as Record<string, {name: string, results: Result[]}>) || {};
-
-    const reportCardsByTerm = reportCards?.reduce((acc, card) => {
-        acc[card.termId] = card;
-        return acc;
-    }, {} as Record<string, ReportCard>) || {};
-
-    const allTermIds = new Set([...Object.keys(resultsByTerm), ...Object.keys(reportCardsByTerm)]);
-    
-    // Sort terms. Assuming term IDs like 't1-24-25', 't2-24-25'.
-    const sortedTermIds = Array.from(allTermIds).sort((a, b) => {
-        // A simple sort that should work for the current format.
-        // It could be made more robust if term IDs become more complex.
-        return a.localeCompare(b);
-    });
-
-    const allTerms = sortedTermIds.map(id => ({ id, name: resultsByTerm[id]?.name || reportCards.find(rc => rc.termId === id)?.termName || 'Unknown Term'}));
+    }, {} as Record<string, Result[]>) || {};
     
     return (
         <AccordionItem value={child.id} key={child.id} className="border-b-0">
@@ -495,40 +323,50 @@ function ChildResults({ child, terms }: { child: Student, terms: Term[] }) {
                     </div>
                 </AccordionTrigger>
                 <AccordionContent className="p-0">
-                    <div className="p-6">
-                        {allTerms.map(term => {
-                            const termResults = resultsByTerm[term.id]?.results || [];
-                            const termReportCard = reportCardsByTerm[term.id];
+                    <div className="p-6 space-y-8">
+                       {Object.keys(resultsByTerm).length > 0 ? (
+                           Object.entries(resultsByTerm).map(([termName, termResults]) => {
+                             const totalMarks = termResults.reduce((sum, r) => sum + r.total_score, 0);
+                             const average = totalMarks / termResults.length;
+                             const position = termResults[0]?.position || 'N/A'; // Assuming position is same for all results in a term
 
-                            if (termResults.length === 0 && !termReportCard) return null;
-
-                            return (
-                                <div key={term.id} className="mb-8 last:mb-0">
-                                    <h4 className="font-bold text-lg mb-2 border-b pb-2">{term.name}</h4>
-                                    {termResults.length > 0 && (
-                                        <Table>
-                                            <TableHeader><TableRow><TableHead>Subject</TableHead><TableHead>Marks</TableHead><TableHead>Grade</TableHead></TableRow></TableHeader>
-                                            <TableBody>
-                                                {termResults.map(r => (
-                                                    <TableRow key={r.id}><TableCell>{r.subjectName}</TableCell><TableCell>{r.marks}</TableCell><TableCell>{r.grade}</TableCell></TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    )}
-                                    {termReportCard && (
-                                        <div className="mt-4">
-                                            <h5 className="font-semibold mb-2">Full Report Card</h5>
-                                            <Button asChild variant="outline">
-                                                <a href={termReportCard.imageUrl} target="_blank" rel="noopener noreferrer">View Uploaded Report</a>
-                                            </Button>
-                                        </div>
-                                    )}
+                               return (
+                                <div key={termName} className="mb-8 last:mb-0">
+                                    <h4 className="font-bold text-lg mb-4 border-b pb-2">{termName}</h4>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Subject</TableHead>
+                                                <TableHead>CA (40)</TableHead>
+                                                <TableHead>Exam (60)</TableHead>
+                                                <TableHead>Total (100)</TableHead>
+                                                <TableHead>Grade</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {termResults.map(r => (
+                                                <TableRow key={r.id}>
+                                                    <TableCell>{r.subject_name}</TableCell>
+                                                    <TableCell>{r.ca_score}</TableCell>
+                                                    <TableCell>{r.exam_score}</TableCell>
+                                                    <TableCell>{r.total_score}</TableCell>
+                                                    <TableCell>{r.grade}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm font-medium">
+                                        <div className="p-2 bg-muted rounded-md">Total: <span className="font-bold">{totalMarks.toFixed(2)}</span></div>
+                                        <div className="p-2 bg-muted rounded-md">Average: <span className="font-bold">{average.toFixed(2)}%</span></div>
+                                        <div className="p-2 bg-muted rounded-md">Overall Grade: <span className="font-bold">{getGrade(average)}</span></div>
+                                        <div className="p-2 bg-muted rounded-md">Position: <span className="font-bold">{position}</span></div>
+                                    </div>
                                 </div>
-                            )
-                        })}
-                        {allTerms.length === 0 && (
-                            <p className="text-muted-foreground text-center py-8">No results or report cards have been uploaded for {child.fullName} yet.</p>
-                        )}
+                               )
+                           })
+                       ) : (
+                         <p className="text-muted-foreground text-center py-8">No results have been uploaded for {child.fullName} yet.</p>
+                       )}
                     </div>
                 </AccordionContent>
             </Card>
@@ -561,42 +399,27 @@ function ParentResultsView({ children, terms }: { children: Student[], terms: Te
 export default function ResultsPage() {
   const { user } = useAuth();
   const firestore = useFirestore();
-  const [dataVersion, setDataVersion] = useState(0); // To force re-fetch
+  const [dataVersion, setDataVersion] = useState(0); 
 
-  // Seed data effect
   useEffect(() => {
     if (!firestore || user?.role === 'parent') return;
 
-    const seedData = async () => {
-      const batch = writeBatch(firestore);
+    const seedTerms = async () => {
       const termsRef = collection(firestore, 'terms');
-      const subjectsRef = collection(firestore, 'subjects');
-
       const termSnap = await getDocs(termsRef);
       if (termSnap.empty) {
+        const batch = writeBatch(firestore);
         const termsData = [
           { id: 't1-24-25', name: 'First Term 2024/2025' },
           { id: 't2-24-25', name: 'Second Term 2024/2025' },
           { id: 't3-24-25', name: 'Third Term 2024/2025' },
         ];
         termsData.forEach(t => batch.set(doc(termsRef, t.id), t));
+        await batch.commit();
+        setDataVersion(v => v + 1);
       }
-
-      const subjectSnap = await getDocs(subjectsRef);
-      if (subjectSnap.empty) {
-        const subjectsData = [
-          { id: 'math', name: 'Mathematics', category: 'core' },
-          { id: 'eng', name: 'English Language', category: 'core' },
-          { id: 'quran', name: 'Quran Memorization', category: 'islamic' },
-        ];
-        subjectsData.forEach(s => batch.set(doc(subjectsRef, s.id), s));
-      }
-
-      await batch.commit();
-      setDataVersion(v => v + 1); // Trigger data refresh
     };
-
-    seedData();
+    seedTerms();
   }, [firestore, user?.role]);
 
   // Data fetching hooks
@@ -613,27 +436,14 @@ export default function ResultsPage() {
       return collection(firestore, 'terms')
   }, [firestore, dataVersion]);
 
-  const subjectsQuery = useMemoFirebase(() => {
-    if(!firestore) return null;
-    return collection(firestore, 'subjects')
-  }, [firestore, dataVersion]);
-
   const { data: students, isLoading: studentsLoading } = useCollection<Student>(studentsQuery);
   const { data: termsData, isLoading: termsLoading } = useCollection<Term>(termsQuery);
-  const { data: subjectsData, isLoading: subjectsLoading } = useCollection<Subject>(subjectsQuery);
-
+  
   if (!user) return <p>Loading...</p>;
 
-  const handleNewSubject = () => {
-    // Just trigger a re-fetch, don't add to local state
-    setDataVersion(v => v + 1);
-  };
-  
-  const handleNewResult = () => {
-    setDataVersion(v => v + 1);
-  }
+  const handleNewResult = () => setDataVersion(v => v + 1);
 
-  const isDataLoading = studentsLoading || termsLoading || subjectsLoading;
+  const isDataLoading = studentsLoading || termsLoading;
   const isParent = user.role === 'parent';
 
   return (
@@ -648,19 +458,10 @@ export default function ResultsPage() {
       </div>
       
        {isParent ? (
-        <ParentResultsView children={students || []} terms={termsData || []} />
+        isDataLoading ? <Skeleton className="h-64 w-full" /> : <ParentResultsView children={students || []} terms={termsData || []} />
       ) : (
-        <TeacherAdminView 
-            students={students || []} 
-            terms={termsData || []} 
-            subjects={subjectsData || []}
-            onResultAdded={handleNewResult}
-            onSubjectAdded={handleNewSubject}
-            isLoading={isDataLoading}
-        />
+         isDataLoading ? <Skeleton className="h-96 w-full" /> : <BulkResultEntryForm students={students || []} terms={termsData || []} onResultAdded={handleNewResult} />
       )}
     </div>
   );
 }
-
-    

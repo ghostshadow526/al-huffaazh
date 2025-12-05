@@ -267,15 +267,20 @@
         "studentName": { "type": "string", "description": "Denormalized student name for display." },
         "termId": { "type": "string" },
         "termName": { "type": "string", "description": "Denormalized term name for display." },
-        "subjectId": { "type": "string" },
-        "subjectName": { "type": "string", "description": "Denormalized subject name for display." },
         "branchId": { "type": "string" },
-        "marks": { "type": "number", "minimum": 0, "maximum": 100 },
+        "subject_name": { "type": "string", "description": "Name of the subject." },
+        "ca_score": { "type": "number", "minimum": 0, "maximum": 40 },
+        "exam_score": { "type": "number", "minimum": 0, "maximum": 60 },
+        "total_score": { "type": "number", "minimum": 0, "maximum": 100 },
         "grade": { "type": "string", "description": "The grade achieved (e.g., A, B, C)." },
+        "position": { "type": "string", "description": "The student's position in the class for that term." },
         "recordedBy": { "type": "string", "description": "Reference to the User (teacher) who recorded the result." },
         "recordedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["studentId", "termId", "subjectId", "branchId", "marks", "recordedBy", "recordedAt", "studentName", "termName", "subjectName"]
+      "required": [
+        "studentId", "termId", "branchId", "subject_name", "ca_score", "exam_score", 
+        "total_score", "grade", "recordedBy", "recordedAt", "studentName", "termName"
+      ]
     },
     "ReportCard": {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -385,7 +390,7 @@
         "path": "/results/{resultId}",
         "definition": {
           "schema": { "$ref": "#/entities/Result" },
-          "description": "Stores student results for each subject and term. The ID is a composite of studentId, termId, and subjectId."
+          "description": "Stores student results for each subject and term."
         }
       },
       {
