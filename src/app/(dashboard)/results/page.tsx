@@ -106,16 +106,17 @@ function BulkResultEntryForm({ students, terms, onResultAdded }: { students: Stu
     }, [watchedResults, form]);
 
     const overallTotal = useMemo(() => {
-        return watchedResults.reduce((sum, result) => sum + (result.total_score || 0), 0);
+        return (watchedResults || []).reduce((sum, result) => sum + (Number(result.total_score) || 0), 0);
     }, [watchedResults]);
 
     const overallAverage = useMemo(() => {
         if (!watchedResults) return 0;
         const validSubjects = watchedResults.filter(r => r.subject_name && r.total_score != null && r.total_score > 0);
         if (validSubjects.length === 0) return 0;
-        const total = validSubjects.reduce((sum, result) => sum + (result.total_score || 0), 0);
+        const total = validSubjects.reduce((sum, result) => sum + (Number(result.total_score) || 0), 0);
         return total / validSubjects.length;
     }, [watchedResults]);
+
 
     const onSubmit = async (values: z.infer<typeof bulkResultsSchema>) => {
         if (!user || !firestore) return;
