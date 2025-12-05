@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -50,6 +51,7 @@ interface Result {
   exam_score: number;
   total_score: number;
   grade: string;
+  position?: string;
 }
 
 interface Term {
@@ -108,10 +110,12 @@ function BulkResultEntryForm({ students, terms, onResultAdded }: { students: Stu
     }, [watchedResults]);
 
     const overallAverage = useMemo(() => {
-        const validSubjects = watchedResults.filter(r => r.subject_name && r.total_score! > 0);
+        if (!watchedResults) return 0;
+        const validSubjects = watchedResults.filter(r => r.subject_name && r.total_score != null && r.total_score > 0);
         if (validSubjects.length === 0) return 0;
-        return overallTotal / validSubjects.length;
-    }, [watchedResults, overallTotal]);
+        const total = validSubjects.reduce((sum, result) => sum + (result.total_score || 0), 0);
+        return total / validSubjects.length;
+    }, [watchedResults]);
 
     const onSubmit = async (values: z.infer<typeof bulkResultsSchema>) => {
         if (!user || !firestore) return;
@@ -171,7 +175,7 @@ function BulkResultEntryForm({ students, terms, onResultAdded }: { students: Stu
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Student & Term</CardTitle>
+                        <CardTitle>Student &amp; Term</CardTitle>
                         <CardDescription>Select the student and the academic term for these results.</CardDescription>
                     </CardHeader>
                     <CardContent className="grid md:grid-cols-2 gap-6">
@@ -260,11 +264,11 @@ function BulkResultEntryForm({ students, terms, onResultAdded }: { students: Stu
                     <CardContent className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <FormItem>
                             <FormLabel>Total Marks</FormLabel>
-                            <Input value={overallTotal.toFixed(2)} readOnly className="bg-muted font-bold" />
+                            <Input value={(overallTotal || 0).toFixed(2)} readOnly className="bg-muted font-bold" />
                         </FormItem>
                         <FormItem>
                             <FormLabel>Average (%)</FormLabel>
-                            <Input value={overallAverage.toFixed(2)} readOnly className="bg-muted font-bold" />
+                            <Input value={(overallAverage || 0).toFixed(2)} readOnly className="bg-muted font-bold" />
                         </FormItem>
                          <FormItem>
                             <FormLabel>Overall Grade</FormLabel>
@@ -465,3 +469,5 @@ export default function ResultsPage() {
     </div>
   );
 }
+
+    
