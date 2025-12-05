@@ -269,7 +269,8 @@
         "termName": { "type": "string", "description": "Denormalized term name for display." },
         "branchId": { "type": "string" },
         "subject_name": { "type": "string", "description": "Name of the subject." },
-        "ca_score": { "type": "number", "minimum": 0, "maximum": 40 },
+        "ca_score": { "type": "number", "minimum": 0, "maximum": 20 },
+        "assignment_score": { "type": "number", "minimum": 0, "maximum": 20 },
         "exam_score": { "type": "number", "minimum": 0, "maximum": 60 },
         "total_score": { "type": "number", "minimum": 0, "maximum": 100 },
         "grade": { "type": "string", "description": "The grade achieved (e.g., A, B, C)." },
@@ -278,7 +279,7 @@
         "recordedAt": { "type": "string", "format": "date-time" }
       },
       "required": [
-        "studentId", "termId", "branchId", "subject_name", "ca_score", "exam_score", 
+        "studentId", "termId", "branchId", "subject_name", "ca_score", "assignment_score", "exam_score", 
         "total_score", "grade", "recordedBy", "recordedAt", "studentName", "termName"
       ]
     },

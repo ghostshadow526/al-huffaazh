@@ -27,7 +27,8 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '
 
 const subjectResultSchema = z.object({
   subject_name: z.string().min(1, 'Subject name is required.'),
-  ca_score: z.coerce.number().min(0).max(40).optional().default(0),
+  ca_score: z.coerce.number().min(0).max(20).optional().default(0),
+  assignment_score: z.coerce.number().min(0).max(20).optional().default(0),
   exam_score: z.coerce.number().min(0).max(60).optional().default(0),
   total_score: z.coerce.number().min(0).max(100).optional().default(0),
   grade: z.string().optional().default(''),
@@ -48,6 +49,7 @@ interface Result {
   termName: string;
   subject_name: string;
   ca_score: number;
+  assignment_score: number;
   exam_score: number;
   total_score: number;
   grade: string;
@@ -81,7 +83,7 @@ function BulkResultEntryForm({ students, terms, onResultAdded }: { students: Stu
         defaultValues: {
             studentId: '',
             termId: '',
-            results: [{ subject_name: 'English Language', ca_score: 0, exam_score: 0 }],
+            results: [{ subject_name: 'English Language', ca_score: 0, assignment_score: 0, exam_score: 0 }],
             position: '',
         },
     });
@@ -96,8 +98,9 @@ function BulkResultEntryForm({ students, terms, onResultAdded }: { students: Stu
     useEffect(() => {
         watchedResults.forEach((result, index) => {
             const ca = Number(result.ca_score) || 0;
+            const assignment = Number(result.assignment_score) || 0;
             const exam = Number(result.exam_score) || 0;
-            const total = ca + exam;
+            const total = ca + assignment + exam;
             if (result.total_score !== total) {
                 form.setValue(`results.${index}.total_score`, total);
                 form.setValue(`results.${index}.grade`, getGrade(total));
@@ -146,6 +149,7 @@ function BulkResultEntryForm({ students, terms, onResultAdded }: { students: Stu
                         branchId: student.branchId,
                         subject_name: result.subject_name,
                         ca_score: result.ca_score || 0,
+                        assignment_score: result.assignment_score || 0,
                         exam_score: result.exam_score || 0,
                         total_score: result.total_score || 0,
                         grade: getGrade(result.total_score || 0),
@@ -211,8 +215,9 @@ function BulkResultEntryForm({ students, terms, onResultAdded }: { students: Stu
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-1/3">Subject Name</TableHead>
-                                    <TableHead>CA/Test (40)</TableHead>
+                                    <TableHead className="w-1/4">Subject Name</TableHead>
+                                    <TableHead>CA/Test (20)</TableHead>
+                                    <TableHead>Assignment (20)</TableHead>
                                     <TableHead>Exam (60)</TableHead>
                                     <TableHead>Total (100)</TableHead>
                                     <TableHead>Grade</TableHead>
@@ -229,6 +234,11 @@ function BulkResultEntryForm({ students, terms, onResultAdded }: { students: Stu
                                         </TableCell>
                                         <TableCell>
                                             <FormField control={form.control} name={`results.${index}.ca_score`} render={({ field }) => (
+                                                <FormItem><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                                            )} />
+                                        </TableCell>
+                                        <TableCell>
+                                            <FormField control={form.control} name={`results.${index}.assignment_score`} render={({ field }) => (
                                                 <FormItem><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
                                             )} />
                                         </TableCell>
@@ -252,7 +262,7 @@ function BulkResultEntryForm({ students, terms, onResultAdded }: { students: Stu
                                 ))}
                             </TableBody>
                         </Table>
-                         <Button type="button" variant="outline" size="sm" onClick={() => append({ subject_name: '', ca_score: 0, exam_score: 0 })} className="mt-4" disabled={fields.length >= 15}>
+                         <Button type="button" variant="outline" size="sm" onClick={() => append({ subject_name: '', ca_score: 0, assignment_score: 0, exam_score: 0 })} className="mt-4" disabled={fields.length >= 15}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Add Subject
                         </Button>
                     </CardContent>
@@ -342,7 +352,8 @@ function ChildResults({ child, terms }: { child: Student, terms: Term[] }) {
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Subject</TableHead>
-                                                <TableHead>CA (40)</TableHead>
+                                                <TableHead>Test (20)</TableHead>
+                                                <TableHead>Assign. (20)</TableHead>
                                                 <TableHead>Exam (60)</TableHead>
                                                 <TableHead>Total (100)</TableHead>
                                                 <TableHead>Grade</TableHead>
@@ -353,6 +364,7 @@ function ChildResults({ child, terms }: { child: Student, terms: Term[] }) {
                                                 <TableRow key={r.id}>
                                                     <TableCell>{r.subject_name}</TableCell>
                                                     <TableCell>{r.ca_score}</TableCell>
+                                                    <TableCell>{r.assignment_score}</TableCell>
                                                     <TableCell>{r.exam_score}</TableCell>
                                                     <TableCell>{r.total_score}</TableCell>
                                                     <TableCell>{r.grade}</TableCell>
@@ -470,5 +482,3 @@ export default function ResultsPage() {
     </div>
   );
 }
-
-    
