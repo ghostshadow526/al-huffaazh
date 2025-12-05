@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -88,6 +87,8 @@ export default function AddStudentPage() {
   const ikUploadRef = useRef<HTMLInputElement>(null);
   const [showCredentials, setShowCredentials] = useState(false);
   const [generatedCredentials, setGeneratedCredentials] = useState({ email: '', password: '' });
+
+  const canAddStudent = user?.role === 'branch_admin' || user?.role === 'super_admin';
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -254,6 +255,21 @@ export default function AddStudentPage() {
     navigator.clipboard.writeText(text);
     toast({ title: 'Copied!', description: 'Credentials copied to clipboard.' });
   };
+
+
+  if (!canAddStudent) {
+    return (
+        <Card className="max-w-3xl mx-auto">
+            <CardHeader>
+                <CardTitle>Access Denied</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p>You do not have permission to add new students. Please contact an administrator.</p>
+                <Button onClick={() => router.back()} className="mt-4">Go Back</Button>
+            </CardContent>
+        </Card>
+    );
+  }
 
 
   return (

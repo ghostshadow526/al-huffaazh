@@ -104,7 +104,7 @@ service cloud.firestore {
 
     match /students/{studentId} {
       allow get, list: if isSignedInUserActive() && (isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && getUserData(request.auth.uid).branchId == get(/databases/$(database)/documents/students/$(studentId)).data.branchId) || isParentOfStudent(studentId));
-      allow create: if isSuperAdmin() || (isBranchAdmin() && request.resource.data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && request.resource.data.branchId == getUserData(request.auth.uid).branchId);
+      allow create: if isSuperAdmin() || (isBranchAdmin() && request.resource.data.branchId == getUserData(request.auth.uid).branchId);
       allow update, delete: if isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId);
     }
 
