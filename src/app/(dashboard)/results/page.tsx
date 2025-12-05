@@ -95,8 +95,8 @@ function BulkResultEntryForm({ students, terms, onResultAdded }: { students: Stu
 
     useEffect(() => {
         watchedResults.forEach((result, index) => {
-            const ca = result.ca_score || 0;
-            const exam = result.exam_score || 0;
+            const ca = Number(result.ca_score) || 0;
+            const exam = Number(result.exam_score) || 0;
             const total = ca + exam;
             if (result.total_score !== total) {
                 form.setValue(`results.${index}.total_score`, total);
