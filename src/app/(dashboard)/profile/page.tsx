@@ -41,7 +41,9 @@ export default function ProfilePage() {
     };
 
     const onUploadSuccess = (ikResponse: any) => {
-        setNewPhotoUrl(ikResponse.url);
+        // Append a timestamp to the URL to bust the cache
+        const cacheBustedUrl = `${ikResponse.url}?updatedAt=${Date.now()}`;
+        setNewPhotoUrl(cacheBustedUrl);
         toast({
             title: 'Photo Uploaded',
             description: "Your new profile photo is ready. Click 'Save Changes' to apply it.",
@@ -71,8 +73,10 @@ export default function ProfilePage() {
         setIsSaving(true);
         try {
             const userDocRef = doc(firestore, 'users', user.uid);
+            // Save the URL without the cache-busting query parameter
+            const finalUrl = newPhotoUrl.split('?')[0];
             await updateDoc(userDocRef, {
-                photoURL: newPhotoUrl,
+                photoURL: finalUrl,
             });
             toast({
                 title: 'Profile Updated',
