@@ -75,7 +75,8 @@ const BRANCH_NAMES = [
   "Nye Kogi State Branch",
   "Gambare Ogbomosho Branch",
   "Hamama Ogbomosho Branch",
-  "Sakee Branch"
+  "Sakee Branch",
+  "AL-ASHED Branch"
 ];
 
 export default function InviteUserPage() {
