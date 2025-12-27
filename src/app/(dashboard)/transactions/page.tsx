@@ -53,6 +53,20 @@ const imageKitAuthenticator = async () => {
   return result;
 };
 
+const bankAccounts = [
+    { number: '2036300745', branch: 'Kauro and Marwa' },
+    { number: '2036316098', branch: 'Nye, Kogi State' },
+    { number: '2036316115', branch: 'Ogbomosho Hamama' },
+    { number: '2036316328', branch: 'Katchia, Kaduna' },
+    { number: '2036316373', branch: 'Jos (2 branches)' },
+    { number: '2036316407', branch: 'Saminaka' },
+    { number: '2036316414', branch: 'Saki' },
+    { number: '2036316445', branch: 'Gambari' },
+    { number: '2036316490', branch: 'Kayarda' },
+    { number: '2036323197', branch: 'Mariri Dokan Lere, Lere & AL-ASHED' },
+];
+
+
 export default function ParentTransactionsPage() {
   const { user } = useAuth();
   const firestore = useFirestore();
@@ -151,14 +165,23 @@ export default function ParentTransactionsPage() {
         <CardHeader>
           <CardTitle>Make a Payment</CardTitle>
           <CardDescription>
-            Please make payments to the account below and upload your receipt for verification.
+            Please make payments to the appropriate account below and upload your receipt for verification.
           </CardDescription>
         </CardHeader>
         <CardContent>
-            <div className="p-4 rounded-lg bg-secondary border space-y-2">
-                <p className="font-semibold text-lg">AL-HUFFAAZH ACADEMY NIGERIA LIMITED</p>
-                <p className="text-muted-foreground"><span className="font-medium text-foreground">Bank:</span> FIRST BANK OF NIGERIA</p>
-                <p className="text-muted-foreground"><span className="font-medium text-foreground">Account Number:</span> 2038475619</p>
+            <div className="p-4 rounded-lg bg-secondary border space-y-4">
+                <div className="text-center">
+                    <p className="font-semibold text-lg">AL-HUFFAAZH ACADEMY NIGERIA LIMITED</p>
+                    <p className="text-muted-foreground"><span className="font-medium text-foreground">Bank:</span> FIRST BANK OF NIGERIA</p>
+                </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+                    {bankAccounts.map(account => (
+                        <div key={account.number} className="flex justify-between items-center text-sm border-b py-1">
+                            <span className="text-muted-foreground">{account.branch}:</span>
+                            <span className="font-mono font-semibold text-foreground">{account.number}</span>
+                        </div>
+                    ))}
+                 </div>
             </div>
         </CardContent>
       </Card>
@@ -325,5 +348,3 @@ export default function ParentTransactionsPage() {
     </div>
   );
 }
-
-    
