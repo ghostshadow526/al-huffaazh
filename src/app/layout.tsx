@@ -1,5 +1,5 @@
 
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, Poppins } from 'next/font/google';
 import './globals.css';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
@@ -18,9 +18,19 @@ const poppins = Poppins({
   display: 'swap',
 });
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export const metadata: Metadata = {
   title: 'Al-Huffaazh Academy',
-  description: 'A premier institution for Islamic and Western education.',
+  description: 'School Management and Portal for Al-Huffaazh Academy Nigeria Limited',
+  openGraph: {
+    title: 'Al-Huffaazh Academy',
+    description: 'School Management and Portal for Al-Huffaazh Academy Nigeria Limited',
+  },
 };
 
 export default function RootLayout({

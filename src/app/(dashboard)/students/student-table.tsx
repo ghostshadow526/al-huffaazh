@@ -125,28 +125,32 @@ export function StudentTable({ data, columns, isLoading }: StudentTableProps) {
   }
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
+    <div className="w-full overflow-x-auto rounded-xl border-2 border-border shadow-xs">
+      <Table className="min-w-[680px]">
+        <TableHeader className="bg-muted/40">
           <TableRow>
             {columns.map(col => (
-              <TableHead key={String(col)}>{columnHeaders[String(col)] || String(col)}</TableHead>
+              <TableHead key={String(col)} className="font-bold text-foreground py-3.5">
+                {columnHeaders[String(col)] || String(col)}
+              </TableHead>
             ))}
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.length > 0 ? (
             data.map(item => (
-              <TableRow key={item.id}>
+              <TableRow key={item.id} className="hover:bg-muted/30">
                 {columns.map(col => (
-                  <TableCell key={String(col)}>{renderCell(item, col)}</TableCell>
+                  <TableCell key={String(col)} className="py-3">
+                    {renderCell(item, col)}
+                  </TableCell>
                 ))}
               </TableRow>
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                No students found.
+              <TableCell colSpan={columns.length} className="h-28 text-center text-muted-foreground">
+                No students found in this view.
               </TableCell>
             </TableRow>
           )}

@@ -1,0 +1,6 @@
+{
+  "name": "Al-Huffaazh Academy",
+  "description": "School Management and Portal for Al-Huffaazh Academy Nigeria Limited",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

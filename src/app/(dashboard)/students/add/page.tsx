@@ -6,7 +6,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { doc, setDoc, serverTimestamp, writeBatch, collection, Timestamp } from 'firebase/firestore';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { initializeApp, getApps } from 'firebase/app';
+import { firebaseConfig } from '@/firebase/config';
+import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/components/auth-provider';
 import { useRouter } from 'next/navigation';
@@ -42,9 +44,8 @@ import {
     SelectValue,
   } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Loader2, Copy } from 'lucide-react';
-import { Calendar } from '@/components/ui/calendar';
+import { Loader2, Copy } from 'lucide-react';
+import { DateOfBirthPicker } from '@/components/ui/dob-picker';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import Image from 'next/image';
@@ -88,7 +89,7 @@ export default function AddStudentPage() {
   const [showCredentials, setShowCredentials] = useState(false);
   const [generatedCredentials, setGeneratedCredentials] = useState({ email: '', password: '' });
 
-  const canAddStudent = user?.role === 'branch_admin' || user?.role === 'super_admin';
+  const canAddStudent = user?.role === 'teacher' || user?.role === 'branch_admin' || user?.role === 'super_admin';
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -141,17 +142,17 @@ export default function AddStudentPage() {
     }
     setIsLoading(true);
 
-    const tempApp = mainAuth.app;
-    const { getAuth } = await import('firebase/auth');
-    const tempAuth = getAuth(tempApp);
-    
     try {
+        const secondaryApp = getApps().find(a => a.name === 'SecondaryAddStudent') || initializeApp(firebaseConfig, 'SecondaryAddStudent');
+        const secondaryAuth = getAuth(secondaryApp);
+
         const batch = writeBatch(db);
 
         // 1. Create Parent User Account
         const parentPassword = generatePassword();
-        const parentUserCredential = await createUserWithEmailAndPassword(tempAuth, values.parentEmail, parentPassword);
+        const parentUserCredential = await createUserWithEmailAndPassword(secondaryAuth, values.parentEmail, parentPassword);
         const parentUser = parentUserCredential.user;
+        await signOut(secondaryAuth);
 
         const parentUserDocRef = doc(db, 'users', parentUser.uid);
         batch.set(parentUserDocRef, {
@@ -244,10 +245,6 @@ export default function AddStudentPage() {
         });
     } finally {
         setIsLoading(false);
-        // Sign out the newly created user and sign the admin back in
-        await mainAuth.signOut();
-        // You might need to re-authenticate the admin here if the session was lost.
-        // For simplicity, we assume the onAuthStateChanged listener handles this.
     }
   }
 
@@ -322,15 +319,15 @@ export default function AddStudentPage() {
               )}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
                  <FormField
                     control={form.control}
                     name="fullName"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Full Name</FormLabel>
+                        <FormLabel className="text-sm font-semibold">Full Name *</FormLabel>
                         <FormControl>
-                            <Input placeholder="John Doe" {...field} />
+                            <Input placeholder="e.g. Ibrahim Abubakar" className="h-12 text-base rounded-lg border-2" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -341,9 +338,9 @@ export default function AddStudentPage() {
                     name="admissionNo"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Admission Number</FormLabel>
+                        <FormLabel className="text-sm font-semibold">Admission Number *</FormLabel>
                         <FormControl>
-                            <Input placeholder="ALH/2025/001" {...field} />
+                            <Input placeholder="e.g. ALH/2025/001" className="h-12 text-base rounded-lg border-2 font-mono" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -354,38 +351,14 @@ export default function AddStudentPage() {
                         name="dob"
                         render={({ field }) => (
                             <FormItem className="flex flex-col">
-                            <FormLabel>Date of Birth</FormLabel>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                <FormControl>
-                                    <Button
-                                    variant={"outline"}
-                                    className={cn(
-                                        "pl-3 text-left font-normal",
-                                        !field.value && "text-muted-foreground"
-                                    )}
-                                    >
-                                    {field.value ? (
-                                        format(field.value, "PPP")
-                                    ) : (
-                                        <span>Pick a date</span>
-                                    )}
-                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                    </Button>
-                                </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                    mode="single"
-                                    selected={field.value}
-                                    onSelect={field.onChange}
-                                    disabled={(date) =>
-                                    date > new Date() || date < new Date("1900-01-01")
-                                    }
-                                    initialFocus
+                            <FormLabel className="text-sm font-semibold">Date of Birth (Select Year, Month, Day) *</FormLabel>
+                            <FormControl>
+                                <DateOfBirthPicker
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    placeholder="Choose Birth Date (Year, Month, Day)"
                                 />
-                                </PopoverContent>
-                            </Popover>
+                            </FormControl>
                             <FormMessage />
                             </FormItem>
                         )}
@@ -395,10 +368,10 @@ export default function AddStudentPage() {
                             name="gender"
                             render={({ field }) => (
                                 <FormItem>
-                                <FormLabel>Gender</FormLabel>
+                                <FormLabel className="text-sm font-semibold">Gender *</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="h-12 text-base rounded-lg border-2">
                                         <SelectValue placeholder="Select gender" />
                                     </SelectTrigger>
                                     </FormControl>
@@ -416,9 +389,9 @@ export default function AddStudentPage() {
                     name="class"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Class</FormLabel>
+                        <FormLabel className="text-sm font-semibold">Class / Grade *</FormLabel>
                         <FormControl>
-                            <Input placeholder="JSS 1" {...field} />
+                            <Input placeholder="e.g. JSS 1, Primary 3, Tahfeezh" className="h-12 text-base rounded-lg border-2" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -429,11 +402,11 @@ export default function AddStudentPage() {
                     name="parentEmail"
                     render={({ field }) => (
                         <FormItem>
-                        <FormLabel>Parent's Email</FormLabel>
+                        <FormLabel className="text-sm font-semibold">Parent's Email *</FormLabel>
                         <FormControl>
-                            <Input type="email" placeholder="parent@example.com" {...field} />
+                            <Input type="email" placeholder="parent@example.com" className="h-12 text-base rounded-lg border-2" {...field} />
                         </FormControl>
-                         <FormDescription>An account will be created for the parent with this email.</FormDescription>
+                         <FormDescription className="text-xs">An account will be created automatically for the parent with this email.</FormDescription>
                         <FormMessage />
                         </FormItem>
                     )}
@@ -443,15 +416,15 @@ export default function AddStudentPage() {
                         name="address"
                         render={({ field }) => (
                             <FormItem className="md:col-span-2">
-                            <FormLabel>Address</FormLabel>
+                            <FormLabel className="text-sm font-semibold">Residential Address *</FormLabel>
                             <FormControl>
                                 <Textarea
-                                placeholder="123, Main Street, Your City..."
-                                className="resize-none"
+                                placeholder="123, Main Street, City / Area..."
+                                className="min-h-[90px] text-base rounded-lg border-2 resize-none"
                                 {...field}
                                 />
                             </FormControl>
-                            <FormDescription>
+                            <FormDescription className="text-xs">
                                 Enter the student's full residential address.
                             </FormDescription>
                             <FormMessage />
@@ -460,11 +433,11 @@ export default function AddStudentPage() {
                         />
             </div>
           </CardContent>
-          <CardFooter className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => router.back()}>Cancel</Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Student
+          <CardFooter className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" className="w-full sm:w-auto h-12 text-base" onClick={() => router.back()}>Cancel</Button>
+            <Button type="submit" disabled={isLoading} className="w-full sm:w-auto h-12 text-base font-semibold px-8">
+              {isLoading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+              Create Student Record
             </Button>
           </CardFooter>
         </form>

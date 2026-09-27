@@ -13,7 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const quickActions: { href: string; label: string; description: string; icon: React.ElementType; roles: UserRole[] }[] = [
-    { href: "/students/add", label: "Add a new student", description: "Enroll a new student and create their parent's account.", icon: UserPlus, roles: ['branch_admin', 'super_admin'] },
+    { href: "/students/add", label: "Add a new student", description: "Enroll a new student and create their parent's account.", icon: UserPlus, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/manage-students", label: "Manage student records", description: "View, and see details of existing students.", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
     { href: "/attendance", label: "Take attendance", description: "Mark daily attendance by scanning student QR codes.", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/results", label: "Enter results", description: "Input student scores and upload report cards.", icon: GraduationCap, roles: ['teacher', 'branch_admin', 'super_admin'] },
@@ -113,8 +113,10 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold font-headline">Welcome, {user?.fullName || user?.email}!</h1>
-        <p className="text-muted-foreground">Here's a summary of your portal.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold font-headline text-foreground break-words">
+          Welcome, {user?.fullName || user?.email}!
+        </h1>
+        <p className="text-muted-foreground text-sm sm:text-base">Here's a summary of your portal.</p>
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

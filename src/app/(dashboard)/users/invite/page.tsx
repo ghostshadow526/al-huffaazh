@@ -6,7 +6,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { initializeApp, getApps } from 'firebase/app';
+import { firebaseConfig } from '@/firebase/config';
+import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useCollection, useMemoFirebase, useAuth as useFirebaseAuth, useFirestore } from '@/firebase';
@@ -48,12 +50,6 @@ const formSchema = z.object({
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
   role: z.enum(['branch_admin', 'teacher', 'parent']),
   branchId: z.string().optional(),
-}).refine((data) => {
-  // branchId is required if role is not super_admin
-  return data.role === 'super_admin' || (typeof data.branchId === 'string' && data.branchId.length > 0);
-}, {
-  message: 'Branch is required for this role.',
-  path: ['branchId'],
 });
 
 interface Branch {
@@ -191,25 +187,35 @@ export default function InviteUserPage() {
       email: '',
       password: '',
       role: currentUser?.role === 'branch_admin' ? 'teacher' : 'branch_admin',
-      branchId: currentUser?.role === 'branch_admin' ? currentUser.branchId : '',
+      branchId: currentUser?.role === 'branch_admin' ? (currentUser.branchId || '') : '',
     });
   }, [currentUser, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!auth || !db) return;
+    if (!db) return;
     setIsLoading(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
 
-      await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid,
+    const branchToAssign = currentUser?.role === 'branch_admin'
+      ? (currentUser.branchId || values.branchId || '')
+      : (values.branchId || currentUser?.branchId || '');
+
+    try {
+      // Use secondary Firebase app to avoid signing out the current admin
+      const secondaryApp = getApps().find(a => a.name === 'SecondaryInvite') || initializeApp(firebaseConfig, 'SecondaryInvite');
+      const secondaryAuth = getAuth(secondaryApp);
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, values.email, values.password);
+      const newUser = userCredential.user;
+
+      await setDoc(doc(db, 'users', newUser.uid), {
+        uid: newUser.uid,
         fullName: values.fullName,
         email: values.email,
         role: values.role,
-        branchId: values.branchId,
+        branchId: branchToAssign,
         status: 'active', // Set default status to active
       });
+
+      await signOut(secondaryAuth);
 
       toast({
         title: 'User Created Successfully',
@@ -302,35 +308,49 @@ export default function InviteUserPage() {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="branchId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Branch</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value}
-                    disabled={currentUser?.role === 'branch_admin' || branchesLoading || isSeeding}
-                    required={selectedRole !== 'super_admin'}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a branch" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {branches.map(branch => (
-                        <SelectItem key={branch.id} value={branch.id} className="capitalize">
-                          {branch.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {currentUser?.role === 'branch_admin' ? (
+              <div className="space-y-2">
+                <FormLabel>Branch</FormLabel>
+                <Input
+                  readOnly
+                  disabled
+                  value={branches.find(b => b.id === currentUser.branchId)?.name || currentUser.branchId || 'Assigned to your branch'}
+                  className="bg-muted text-foreground cursor-not-allowed"
+                />
+                <p className="text-xs text-muted-foreground">
+                  As a branch administrator, teachers and users added will automatically be assigned to your branch ({branches.find(b => b.id === currentUser.branchId)?.name || currentUser.branchId}).
+                </p>
+              </div>
+            ) : (
+              <FormField
+                control={form.control}
+                name="branchId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Branch</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={branchesLoading || isSeeding}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a branch" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {branches.map(branch => (
+                          <SelectItem key={branch.id} value={branch.id} className="capitalize">
+                            {branch.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
           </CardContent>
           <CardFooter className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => router.back()}>Cancel</Button>

@@ -27,9 +27,10 @@ interface ComboboxProps {
     searchText?: string;
     disabled?: boolean;
     value?: string;
+    className?: string;
 }
 
-export function Combobox({ options, onSelect, placeholder = "Select an option...", searchText = "Search...", disabled = false, value }: ComboboxProps) {
+export function Combobox({ options, onSelect, placeholder = "Select an option...", searchText = "Search...", disabled = false, value, className }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [internalValue, setInternalValue] = React.useState(value || "")
   
@@ -45,31 +46,34 @@ export function Combobox({ options, onSelect, placeholder = "Select an option...
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          className={cn("w-full justify-between h-11 sm:h-12 text-base rounded-lg border-2 font-normal", className)}
           disabled={disabled}
         >
-          {internalValue
-            ? options.find((option) => option.value === internalValue)?.label
-            : placeholder}
+          <span className="truncate">
+            {internalValue
+              ? options.find((option) => option.value === internalValue)?.label
+              : placeholder}
+          </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+      <PopoverContent className="w-[--radix-popover-trigger-width] max-w-[calc(100vw-32px)] p-0 z-50 rounded-xl shadow-xl border-2" align="start">
         <Command>
-          <CommandInput placeholder={searchText} />
-          <CommandList>
+          <CommandInput placeholder={searchText} className="h-11 text-base" />
+          <CommandList className="max-h-60">
             <CommandEmpty>No results found.</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={option.value}
-                  onSelect={(currentValue) => {
-                    const newValue = currentValue === internalValue ? "" : currentValue;
+                  value={`${option.label} ${option.value}`}
+                  onSelect={() => {
+                    const newValue = option.value === internalValue ? "" : option.value;
                     setInternalValue(newValue);
                     onSelect(newValue);
                     setOpen(false)
                   }}
+                  className="py-2.5 text-base cursor-pointer"
                 >
                   <Check
                     className={cn(

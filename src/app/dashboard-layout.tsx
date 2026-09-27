@@ -118,14 +118,25 @@ export default function DashboardLayout({ user, children }: { user: User; childr
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset>
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:px-6">
-          <SidebarTrigger className="md:hidden"/>
-          <div className="w-full flex-1">
-             <h1 className="text-xl font-semibold capitalize">{pathname.split('/').pop()?.replace('-', ' ')}</h1>
+      <SidebarInset className="min-w-0 overflow-x-hidden">
+        <header className="sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between gap-3 border-b bg-background/95 px-3 sm:px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex items-center gap-3 min-w-0">
+            <SidebarTrigger className="h-10 w-10 shrink-0 text-foreground" />
+            <div className="flex items-center gap-2 min-w-0">
+              <Logo className="w-6 h-6 text-primary md:hidden shrink-0" />
+              <h1 className="text-base sm:text-xl font-bold capitalize truncate">
+                {pathname === '/dashboard' ? 'Overview' : pathname.split('/').pop()?.replace('-', ' ')}
+              </h1>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border">
+              <AvatarImage src={user.photoURL || undefined} alt={user.fullName || 'User'} />
+              <AvatarFallback className="text-xs font-bold">{getInitials(user.fullName || user.email)}</AvatarFallback>
+            </Avatar>
           </div>
         </header>
-        <main className="flex-1 p-4 md:p-6">
+        <main className="flex-1 p-3 sm:p-5 md:p-6 w-full max-w-full overflow-x-hidden">
           {children}
         </main>
       </SidebarInset>
