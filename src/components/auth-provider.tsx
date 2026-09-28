@@ -8,7 +8,7 @@ import { doc, getDoc, onSnapshot, setDoc, Unsubscribe } from 'firebase/firestore
 import { Logo } from './logo';
 import { useUser, useFirestore } from '@/firebase';
 
-export type UserRole = 'super_admin' | 'branch_admin' | 'teacher' | 'parent';
+export type UserRole = 'super_admin' | 'branch_admin' | 'teacher' | 'parent' | 'burser' | 'daarul_iftaa';
 
 export interface User extends FirebaseUser {
   role?: UserRole;

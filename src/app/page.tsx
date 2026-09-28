@@ -95,6 +95,51 @@ export default function MotherSitePage() {
           </div>
       </section>
 
+      {/* DAARUL IFTAA Section */}
+      <section id="daarul-iftaa" className="py-16 md:py-24 bg-gradient-to-br from-emerald-900 via-slate-900 to-primary-deep text-white">
+        <div className="container mx-auto px-4">
+          <div className="max-w-4xl mx-auto text-center space-y-6">
+            <span className="inline-block px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-semibold tracking-wider uppercase">
+              Official Fatwa & Guidance Council
+            </span>
+            <h2 className="text-3xl md:text-5xl font-extrabold font-headline text-white tracking-tight">
+              DAARUL IFTAA (دار الإفتاء)
+            </h2>
+            <p className="text-lg md:text-xl text-gray-200 font-body leading-relaxed max-w-3xl mx-auto">
+              Welcome to the official Daarul Iftaa division of Al-Huffaazh Academy. Providing authentic Islamic jurisprudence, scholarly video lectures, Fiqh guidance, and spiritual counseling rooted in the Quran and the Sunnah.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6 text-left">
+              <div className="p-6 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 space-y-2">
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold text-lg">
+                  فتوى
+                </div>
+                <h3 className="font-bold text-lg text-white">Authentic Fatawa</h3>
+                <p className="text-sm text-gray-300">Scholarly answers and verdicts to modern questions on worship, family, and transactions.</p>
+              </div>
+              <div className="p-6 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 space-y-2">
+                <div className="h-10 w-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-lg">
+                  مرئي
+                </div>
+                <h3 className="font-bold text-lg text-white">Video Lectures & Talks</h3>
+                <p className="text-sm text-gray-300">Watch recorded symposia, Tafseer series, and weekly lectures by esteemed scholars.</p>
+              </div>
+              <div className="p-6 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 space-y-2">
+                <div className="h-10 w-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 font-bold text-lg">
+                  صور
+                </div>
+                <h3 className="font-bold text-lg text-white">Programs & Gallery</h3>
+                <p className="text-sm text-gray-300">Visual coverage of academic seminars, graduation ceremonies, and Islamic gatherings.</p>
+              </div>
+            </div>
+            <div className="pt-6">
+              <Button asChild size="lg" className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-8 py-6 text-base shadow-lg shadow-emerald-950/30">
+                <Link href="/daarul-iftaa">Visit Daarul Iftaa Portal</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section id="branches" className="py-16 md:py-24 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">

@@ -28,6 +28,7 @@ export interface Student {
   admissionNo: string;
   branchId: string;
   photoUrl: string;
+  originalPhotoUrl?: string;
   qrImageUrl?: string;
   parentUserId?: string;
   parentEmail?: string;
@@ -99,13 +100,25 @@ export function StudentTable({ data, columns, isLoading }: StudentTableProps) {
 
     switch (column) {
       case 'photoUrl':
+        const fullQualityUrl = item.originalPhotoUrl || String(value).split('?tr=')[0];
         return (
-            <Avatar>
-              <AvatarImage src={String(value)} alt={item.fullName} />
-              <AvatarFallback>
-                  {item.fullName ? getInitials(item.fullName) : <UserIcon className="h-4 w-4" />}
-              </AvatarFallback>
-            </Avatar>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a href={fullQualityUrl} target="_blank" rel="noopener noreferrer" className="cursor-zoom-in block">
+                    <Avatar className="hover:ring-2 hover:ring-primary transition-all">
+                      <AvatarImage src={String(value)} alt={item.fullName} />
+                      <AvatarFallback>
+                          {item.fullName ? getInitials(item.fullName) : <UserIcon className="h-4 w-4" />}
+                      </AvatarFallback>
+                    </Avatar>
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Click to retrieve original full quality photo</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
         );
       case 'fullName':
         return <span className="font-medium">{String(value)}</span>

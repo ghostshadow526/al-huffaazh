@@ -2,7 +2,7 @@
 "use client";
 import { useAuth, UserRole } from "@/components/auth-provider";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Users, CreditCard, UserPlus, ClipboardList, CalendarCheck, GraduationCap, User as UserIcon } from "lucide-react";
+import { Users, CreditCard, UserPlus, ClipboardList, CalendarCheck, GraduationCap, User as UserIcon, Receipt, Video } from "lucide-react";
 import { useMemoFirebase, useFirestore, useCollection } from "@/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { useEffect, useState } from "react";
@@ -13,11 +13,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const quickActions: { href: string; label: string; description: string; icon: React.ElementType; roles: UserRole[] }[] = [
+    { href: "/bursar", label: "Upload & Tie Student Receipts", description: "Search students in database and upload fee payment receipts for approval.", icon: Receipt, roles: ['burser', 'super_admin'] },
+    { href: "/daarul-iftaa-admin", label: "Daarul Iftaa Media", description: "Add and publish scholarly lectures, videos, and Islamic photo gallery.", icon: Video, roles: ['daarul_iftaa', 'super_admin'] },
     { href: "/students/add", label: "Add a new student", description: "Enroll a new student and create their parent's account.", icon: UserPlus, roles: ['teacher', 'branch_admin', 'super_admin'] },
-    { href: "/manage-students", label: "Manage student records", description: "View, and see details of existing students.", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
+    { href: "/manage-students", label: "Manage student records", description: "View, and see details of existing students.", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher', 'burser'] },
     { href: "/attendance", label: "Take attendance", description: "Mark daily attendance by scanning student QR codes.", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/results", label: "Enter results", description: "Input student scores and upload report cards.", icon: GraduationCap, roles: ['teacher', 'branch_admin', 'super_admin'] },
-    { href: "/admin/transactions", label: "Confirm payments", description: "Review and confirm submitted fee payments.", icon: CreditCard, roles: ['super_admin', 'branch_admin'] },
+    { href: "/admin/transactions", label: "Confirm payments", description: "Review and confirm submitted fee payments.", icon: CreditCard, roles: ['super_admin'] },
     { href: "/transactions", label: "View payment history", description: "Check your payment status and upload receipts.", icon: CreditCard, roles: ['parent'] },
     { href: "/users/invite", label: "Create a new user", description: "Invite new teachers or administrators to the system.", icon: UserPlus, roles: ['super_admin', 'branch_admin'] },
 ];

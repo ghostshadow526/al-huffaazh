@@ -85,6 +85,7 @@ export default function AddStudentPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState('');
+  const [originalPhotoUrl, setOriginalPhotoUrl] = useState('');
   const ikUploadRef = useRef<HTMLInputElement>(null);
   const [showCredentials, setShowCredentials] = useState(false);
   const [generatedCredentials, setGeneratedCredentials] = useState({ email: '', password: '' });
@@ -110,10 +111,17 @@ export default function AddStudentPage() {
   }, [photoUrl, form]);
 
   const onUploadSuccess = (ikResponse: any) => {
-    setPhotoUrl(ikResponse.url);
+    const rawUrl = ikResponse.url;
+    // Compress to lowest quality to save space and storage for imagekit
+    const compressedUrl = rawUrl.includes('?') 
+      ? `${rawUrl}&tr=q-20,w-400` 
+      : `${rawUrl}?tr=q-20,w-400`;
+
+    setOriginalPhotoUrl(rawUrl);
+    setPhotoUrl(compressedUrl);
     toast({
-      title: 'Photo Uploaded',
-      description: 'The student\'s photo has been successfully uploaded.',
+      title: 'Photo Uploaded & Compressed',
+      description: 'Image compressed to lowest quality for storage efficiency, original quality preserved for retrieval.',
     });
     setIsLoading(false);
   };
@@ -208,6 +216,8 @@ export default function AddStudentPage() {
             id: studentId,
             dob: format(values.dob, 'yyyy-MM-dd'),
             branchId: user.branchId,
+            photoUrl: photoUrl,
+            originalPhotoUrl: originalPhotoUrl || photoUrl.split('?tr=')[0],
             qrToken: studentId,
             qrImageUrl: qrUploadResult.url,
             createdByUserId: user.uid,

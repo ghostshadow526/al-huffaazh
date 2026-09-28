@@ -54,6 +54,14 @@ service cloud.firestore {
       return isSignedInUserActive() && getUserData(request.auth.uid).role == 'branch_admin';
     }
 
+    function isBurser() {
+      return isSignedInUserActive() && getUserData(request.auth.uid).role == 'burser';
+    }
+
+    function isDaarulIftaa() {
+      return isSignedInUserActive() && getUserData(request.auth.uid).role == 'daarul_iftaa';
+    }
+
     function isTeacher() {
       return isSignedInUserActive() && getUserData(request.auth.uid).role == 'teacher';
     }
@@ -104,16 +112,21 @@ service cloud.firestore {
     }
 
     match /students/{studentId} {
-      allow get, list: if isSignedInUserActive() && (isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && getUserData(request.auth.uid).branchId == get(/databases/$(database)/documents/students/$(studentId)).data.branchId) || isParentOfStudent(studentId));
+      allow get, list: if isSignedInUserActive() && (isSuperAdmin() || isBurser() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && getUserData(request.auth.uid).branchId == get(/databases/$(database)/documents/students/$(studentId)).data.branchId) || isParentOfStudent(studentId));
       allow create: if isSuperAdmin() || (isBranchAdmin() && request.resource.data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && request.resource.data.branchId == getUserData(request.auth.uid).branchId);
       allow update, delete: if isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId);
     }
 
     match /receipts/{receiptId} {
-      allow get, list: if isSignedInUserActive() && (isParentOfReceipt(receiptId) || (isBranchAdmin() && get(/databases/$(database)/documents/receipts/$(receiptId)).data.branchId == getUserData(request.auth.uid).branchId) || isSuperAdmin());
-      allow create: if isParent() && isParentOfStudent(request.resource.data.studentId);
-      allow update: if isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/receipts/$(receiptId)).data.branchId == getUserData(request.auth.uid).branchId);
+      allow get, list: if isSignedInUserActive() && (isSuperAdmin() || isBurser() || isParentOfReceipt(receiptId));
+      allow create: if isSuperAdmin() || isBurser() || (isParent() && isParentOfStudent(request.resource.data.studentId));
+      allow update: if isSuperAdmin();
       allow delete: if isSuperAdmin();
+    }
+
+    match /daarul_iftaa_media/{docId} {
+      allow get, list: if true;
+      allow create, update, delete: if isSuperAdmin() || isDaarulIftaa();
     }
 
     match /parentCredentials/{userId} {

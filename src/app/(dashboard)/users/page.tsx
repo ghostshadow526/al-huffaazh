@@ -45,6 +45,8 @@ export default function UsersPage() {
   
   const teachers = useMemo(() => filteredUsers(['teacher']), [users]);
   const parents = useMemo(() => filteredUsers(['parent']), [users]);
+  const bursars = useMemo(() => filteredUsers(['burser']), [users]);
+  const daarulIftaaAdmins = useMemo(() => filteredUsers(['daarul_iftaa']), [users]);
   const admins = useMemo(() => filteredUsers(['branch_admin', 'super_admin']), [users]);
 
   return (
@@ -53,7 +55,7 @@ export default function UsersPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Manage Users</h2>
           <p className="text-muted-foreground">
-            View, invite, and manage users for your branch.
+            View, invite, and manage administrators, bursars, Daarul Iftaa staff, teachers, and parents.
           </p>
         </div>
         <div className="flex items-center space-x-4">
@@ -65,12 +67,47 @@ export default function UsersPage() {
         </div>
       </div>
       
-      <Tabs defaultValue="teachers">
-        <TabsList>
+      <Tabs defaultValue="admins">
+        <TabsList className="flex flex-wrap h-auto gap-1">
+          <TabsTrigger value="admins">Admins ({admins.length})</TabsTrigger>
+          <TabsTrigger value="bursars">Bursars ({bursars.length})</TabsTrigger>
+          <TabsTrigger value="daarul_iftaa">Daarul Iftaa ({daarulIftaaAdmins.length})</TabsTrigger>
           <TabsTrigger value="teachers">Teachers ({teachers.length})</TabsTrigger>
           <TabsTrigger value="parents">Parents ({parents.length})</TabsTrigger>
-          <TabsTrigger value="admins">Admins ({admins.length})</TabsTrigger>
         </TabsList>
+        <TabsContent value="admins">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Administrators</CardTitle>
+                    <CardDescription>A list of super administrators and branch administrators.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <UserTable columns={['fullName', 'email', 'role', 'branchId', 'status', 'actions']} data={admins} isLoading={isLoading} />
+                </CardContent>
+            </Card>
+        </TabsContent>
+        <TabsContent value="bursars">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Bursars</CardTitle>
+                    <CardDescription>Bursars responsible for receipt uploads, fee tracking, and financial documentation.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <UserTable columns={['fullName', 'email', 'branchId', 'status', 'actions']} data={bursars} isLoading={isLoading} />
+                </CardContent>
+            </Card>
+        </TabsContent>
+        <TabsContent value="daarul_iftaa">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Daarul Iftaa Staff</CardTitle>
+                    <CardDescription>Scholars and media coordinators responsible for Daarul Iftaa videos, pictures, and fatawa.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <UserTable columns={['fullName', 'email', 'branchId', 'status', 'actions']} data={daarulIftaaAdmins} isLoading={isLoading} />
+                </CardContent>
+            </Card>
+        </TabsContent>
         <TabsContent value="teachers">
             <Card>
                 <CardHeader>
@@ -90,17 +127,6 @@ export default function UsersPage() {
                 </CardHeader>
                 <CardContent>
                     <UserTable columns={['fullName', 'email', 'branchId', 'status', 'actions']} data={parents} isLoading={isLoading} />
-                </CardContent>
-            </Card>
-        </TabsContent>
-         <TabsContent value="admins">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Administrators</CardTitle>
-                    <CardDescription>A list of all administrators in your view.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <UserTable columns={['fullName', 'email', 'branchId', 'status', 'actions']} data={admins} isLoading={isLoading} />
                 </CardContent>
             </Card>
         </TabsContent>

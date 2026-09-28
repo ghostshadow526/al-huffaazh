@@ -37,7 +37,7 @@ const formSchema = z.object({
 });
 
 type Role = "admin" | "teacher" | "parent";
-const validRolesForAdminTab: string[] = ['super_admin', 'branch_admin'];
+const validRolesForAdminTab: string[] = ['super_admin', 'branch_admin', 'burser', 'daarul_iftaa'];
 
 
 export function LoginForm({ role }: { role: Role }) {
@@ -100,6 +100,8 @@ export function LoginForm({ role }: { role: Role }) {
       switch(userRole) {
         case 'super_admin':
         case 'branch_admin':
+        case 'burser':
+        case 'daarul_iftaa':
           if (role === 'admin') canLogin = true;
           expectedRoleTab = 'admin';
           break;

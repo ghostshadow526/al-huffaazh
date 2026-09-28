@@ -36,6 +36,8 @@ import {
   ArrowLeftRight,
   Search,
   Image as ImageIcon,
+  Receipt,
+  Video,
 } from 'lucide-react';
 import { useAuth as useFirebaseAuth } from '@/firebase';
 
@@ -45,15 +47,17 @@ function getInitials(name?: string | null) {
 }
 
 const navItems: { href: string; label: string; icon: LucideIcon; roles: UserRole[] }[] = [
-    { href: "/dashboard", label: "Dashboard", icon: Home, roles: ['super_admin', 'branch_admin', 'teacher', 'parent'] },
-    { href: "/profile", label: "My Profile", icon: UserProfileIcon, roles: ['super_admin', 'branch_admin', 'teacher', 'parent'] },
-    { href: "/manage-students", label: "Manage Students", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher'] },
-    { href: "/search-students", label: "Search Students", icon: Search, roles: ['super_admin', 'branch_admin'] },
+    { href: "/dashboard", label: "Dashboard", icon: Home, roles: ['super_admin', 'branch_admin', 'teacher', 'parent', 'burser', 'daarul_iftaa'] },
+    { href: "/profile", label: "My Profile", icon: UserProfileIcon, roles: ['super_admin', 'branch_admin', 'teacher', 'parent', 'burser', 'daarul_iftaa'] },
+    { href: "/bursar", label: "Bursar Portal", icon: Receipt, roles: ['burser', 'super_admin'] },
+    { href: "/daarul-iftaa-admin", label: "Daarul Iftaa Media", icon: Video, roles: ['daarul_iftaa', 'super_admin'] },
+    { href: "/manage-students", label: "Manage Students", icon: ClipboardList, roles: ['super_admin', 'branch_admin', 'teacher', 'burser'] },
+    { href: "/search-students", label: "Search Students", icon: Search, roles: ['super_admin', 'branch_admin', 'burser'] },
     { href: "/attendance", label: "Attendance", icon: CalendarCheck, roles: ['teacher', 'branch_admin', 'super_admin'] },
     { href: "/results", label: "Results", icon: GraduationCap, roles: ['teacher', 'branch_admin', 'super_admin', 'parent'] },
     { href: "/gallery/upload", label: "Gallery", icon: ImageIcon, roles: ['super_admin', 'branch_admin'] },
     { href: "/transactions", label: "Transactions", icon: ArrowLeftRight, roles: ['parent'] },
-    { href: "/admin/transactions", label: "All Transactions", icon: CreditCard, roles: ['super_admin', 'branch_admin'] },
+    { href: "/admin/transactions", label: "All Transactions", icon: CreditCard, roles: ['super_admin'] },
     { href: "/users", label: "Manage Users", icon: Users, roles: ['super_admin', 'branch_admin'] },
 ];
 

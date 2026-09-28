@@ -48,9 +48,17 @@ const formSchema = z.object({
   fullName: z.string().min(2, { message: 'Full name is required.' }),
   email: z.string().email({ message: 'Please enter a valid email.' }),
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
-  role: z.enum(['branch_admin', 'teacher', 'parent']),
+  role: z.enum(['branch_admin', 'teacher', 'parent', 'burser', 'daarul_iftaa']),
   branchId: z.string().optional(),
 });
+
+const ROLE_LABELS: Record<string, string> = {
+  branch_admin: 'Branch Administrator',
+  burser: 'Bursar (Financial Receipts & Accounts)',
+  daarul_iftaa: 'Daarul Iftaa Admin (Lectures & Media)',
+  teacher: 'Teacher',
+  parent: 'Parent',
+};
 
 interface Branch {
   id: string;
@@ -157,7 +165,7 @@ export default function InviteUserPage() {
 
   const availableRoles = useMemo(() => {
     if (currentUser?.role === 'super_admin') {
-      return ['branch_admin', 'teacher', 'parent'];
+      return ['branch_admin', 'burser', 'daarul_iftaa', 'teacher', 'parent'];
     }
     if (currentUser?.role === 'branch_admin') {
       return ['teacher', 'parent'];
@@ -298,8 +306,8 @@ export default function InviteUserPage() {
                     </FormControl>
                     <SelectContent>
                       {availableRoles.map(role => (
-                        <SelectItem key={role} value={role} className="capitalize">
-                          {role.replace('_', ' ')}
+                        <SelectItem key={role} value={role}>
+                          {ROLE_LABELS[role] || role.replace('_', ' ')}
                         </SelectItem>
                       ))}
                     </SelectContent>
