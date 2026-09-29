@@ -108,13 +108,14 @@ service cloud.firestore {
       allow list: if isSuperAdmin() || isBranchAdmin();
       allow create: if isSuperAdmin() || isBranchAdmin() || (isTeacher() && request.resource.data.role == 'parent' && request.resource.data.branchId == getUserData(request.auth.uid).branchId); 
       allow update: if (isSuperAdmin() || (isBranchAdmin() && getUserData(userId).branchId == getUserData(request.auth.uid).branchId)) || (isOwner(userId) && isSignedInUserActive());
-      allow delete: if false; // Disallow hard deletes. Use status field instead.
+      allow delete: if isSuperAdmin() || (isBranchAdmin() && resource.data.branchId == getUserData(request.auth.uid).branchId && resource.data.role != 'super_admin');
     }
 
     match /students/{studentId} {
       allow get, list: if isSignedInUserActive() && (isSuperAdmin() || isBurser() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && getUserData(request.auth.uid).branchId == get(/databases/$(database)/documents/students/$(studentId)).data.branchId) || isParentOfStudent(studentId));
       allow create: if isSuperAdmin() || (isBranchAdmin() && request.resource.data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && request.resource.data.branchId == getUserData(request.auth.uid).branchId);
-      allow update, delete: if isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId);
+      allow update: if isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId);
+      allow delete: if isSuperAdmin() || (isBranchAdmin() && resource.data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && resource.data.branchId == getUserData(request.auth.uid).branchId);
     }
 
     match /receipts/{receiptId} {

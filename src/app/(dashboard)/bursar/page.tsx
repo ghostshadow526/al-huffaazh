@@ -32,6 +32,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ReceiptModal } from '@/components/receipt-modal';
 
 interface Student {
   id: string;
@@ -681,7 +682,13 @@ export default function BursarPage() {
                   receiptsList.map((rc) => (
                     <TableRow key={rc.id} className="hover:bg-muted/30">
                       <TableCell>
-                        <div className="font-semibold text-foreground">{rc.studentName}</div>
+                        <div 
+                          className={`font-semibold text-foreground ${rc.fileUrl ? 'cursor-pointer hover:underline' : ''}`}
+                          onClick={() => rc.fileUrl && setPreviewReceipt(rc)}
+                          title={rc.fileUrl ? 'Click to view receipt' : undefined}
+                        >
+                          {rc.studentName}
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {rc.admissionNo ? `Adm: ${rc.admissionNo}` : ''} {rc.branchId ? `• ${rc.branchId}` : ''}
                         </div>
@@ -739,50 +746,11 @@ export default function BursarPage() {
       </Card>
 
       {/* Receipt Modal Preview */}
-      <Dialog open={!!previewReceipt} onOpenChange={(open) => !open && setPreviewReceipt(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ReceiptIcon className="h-5 w-5 text-primary" /> Receipt: {previewReceipt?.studentName}
-            </DialogTitle>
-            <DialogDescription>
-              Amount: ₦{previewReceipt?.amount?.toLocaleString()} • Status: {previewReceipt?.status}
-            </DialogDescription>
-          </DialogHeader>
-          {previewReceipt?.fileUrl && (
-            <div className="space-y-4 my-2">
-              <div className="relative w-full h-[400px] border rounded-lg overflow-hidden bg-muted/20 flex items-center justify-center">
-                {previewReceipt.fileUrl.endsWith('.pdf') ? (
-                  <iframe 
-                    src={previewReceipt.fileUrl} 
-                    className="w-full h-full" 
-                    title="Receipt PDF" 
-                  />
-                ) : (
-                  <img 
-                    src={previewReceipt.fileUrl} 
-                    alt="Receipt Image" 
-                    className="object-contain w-full h-full"
-                  />
-                )}
-              </div>
-              <div className="flex justify-between items-center text-xs text-muted-foreground">
-                <span>Branch: {previewReceipt.branchId || 'Not specified'}</span>
-                <Button asChild variant="outline" size="sm">
-                  <a href={previewReceipt.fileUrl} target="_blank" rel="noopener noreferrer">
-                    Open Original in New Tab
-                  </a>
-                </Button>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPreviewReceipt(null)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ReceiptModal
+        receipt={previewReceipt}
+        open={!!previewReceipt}
+        onOpenChange={(open) => !open && setPreviewReceipt(null)}
+      />
     </div>
   );
 }

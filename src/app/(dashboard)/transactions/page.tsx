@@ -23,10 +23,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Loader2, Banknote, UploadCloud, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Banknote, UploadCloud, Clock, CheckCircle, XCircle, Eye } from 'lucide-react';
 import type { Student } from '../students/student-table';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { ReceiptModal, ReceiptData } from '@/components/receipt-modal';
 
 const receiptSchema = z.object({
   studentId: z.string().min(1, 'Please select a child.'),
@@ -75,6 +76,7 @@ export default function ParentTransactionsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState('');
+  const [previewReceipt, setPreviewReceipt] = useState<ReceiptData | null>(null);
   const ikUploadRef = useRef<any>(null);
 
   const childrenQuery = useMemoFirebase(() => {
@@ -317,7 +319,13 @@ export default function ParentTransactionsPage() {
                         receipts.map((t) => (
                         <TableRow key={t.id} className={t.status === 'rejected' ? 'bg-destructive/10' : ''}>
                             <TableCell>
-                                <div className="font-medium">{t.studentName}</div>
+                                <div 
+                                    className={`font-medium ${t.fileUrl ? 'cursor-pointer hover:underline' : ''}`}
+                                    onClick={() => t.fileUrl && setPreviewReceipt(t)}
+                                    title={t.fileUrl ? 'Click to view receipt' : undefined}
+                                >
+                                    {t.studentName}
+                                </div>
                                 <div className="text-sm text-muted-foreground">{t.reason}</div>
                             </TableCell>
                             <TableCell>{t.amount.toLocaleString()}</TableCell>
@@ -329,9 +337,18 @@ export default function ParentTransactionsPage() {
                                 )}
                             </TableCell>
                             <TableCell className="text-right">
-                                <Button asChild variant="outline" size="sm">
-                                    <a href={t.fileUrl} target="_blank" rel="noopener noreferrer">View Receipt</a>
-                                </Button>
+                                {t.fileUrl ? (
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => setPreviewReceipt(t)}
+                                        className="flex items-center gap-1 text-xs ml-auto"
+                                    >
+                                        <Eye className="h-3.5 w-3.5" /> View Receipt
+                                    </Button>
+                                ) : (
+                                    <span className="text-xs text-muted-foreground italic">No receipt</span>
+                                )}
                             </TableCell>
                         </TableRow>
                         ))
@@ -345,6 +362,13 @@ export default function ParentTransactionsPage() {
             </div>
         </CardContent>
       </Card>
+
+      {/* Interactive Receipt Modal */}
+      <ReceiptModal
+        receipt={previewReceipt}
+        open={!!previewReceipt}
+        onOpenChange={(open) => !open && setPreviewReceipt(null)}
+      />
     </div>
   );
 }

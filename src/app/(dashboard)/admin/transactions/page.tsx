@@ -4,20 +4,22 @@ import React, { useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, doc, updateDoc } from 'firebase/firestore';
+import { collection, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
-import { CheckCircle, XCircle, Clock, Loader2, ShieldAlert, Eye, Receipt as ReceiptIcon } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Loader2, ShieldAlert, Eye, Receipt as ReceiptIcon, Trash2 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { ReceiptModal, ReceiptData } from '@/components/receipt-modal';
 
 interface Receipt {
   id: string;
@@ -47,7 +49,8 @@ export default function AdminTransactionsPage() {
 
   const [filter, setFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
-  const [previewReceipt, setPreviewReceipt] = useState<Receipt | null>(null);
+  const [previewReceipt, setPreviewReceipt] = useState<ReceiptData | null>(null);
+  const [receiptToDelete, setReceiptToDelete] = useState<Receipt | null>(null);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -136,6 +139,34 @@ export default function AdminTransactionsPage() {
     });
   };
 
+  const handleDeleteReceipt = async () => {
+    if (!firestore || !receiptToDelete || user?.role !== 'super_admin') return;
+    setIsProcessing(true);
+    const receiptDocRef = doc(firestore, 'receipts', receiptToDelete.id);
+
+    try {
+      await deleteDoc(receiptDocRef);
+      toast({
+        title: 'Receipt Deleted',
+        description: `Receipt for ${receiptToDelete.studentName} (₦${receiptToDelete.amount?.toLocaleString()}) has been permanently deleted.`,
+      });
+      setReceiptToDelete(null);
+    } catch (serverError: any) {
+      const permissionError = new FirestorePermissionError({
+        path: receiptDocRef.path,
+        operation: 'delete',
+      });
+      errorEmitter.emit('permission-error', permissionError);
+      toast({
+        variant: 'destructive',
+        title: 'Deletion Failed',
+        description: serverError.message || 'Could not delete receipt document.',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const getStatusBadge = (status: Receipt['status']) => {
     switch (status) {
       case 'pending':
@@ -173,158 +204,179 @@ export default function AdminTransactionsPage() {
   }
 
   return (
-    <Card className="shadow-sm">
-      <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <CardTitle className="text-2xl font-bold flex items-center gap-2">
-              <ReceiptIcon className="h-6 w-6 text-primary" /> All Transactions & Fee Receipts
-            </CardTitle>
-            <CardDescription className="mt-1">
-              Review, approve, or reject payment receipts submitted by Bursars and Parents across all branches.
-            </CardDescription>
+    <>
+      <Card className="shadow-sm">
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <CardTitle className="text-2xl font-bold flex items-center gap-2">
+                <ReceiptIcon className="h-6 w-6 text-primary" /> All Transactions & Fee Receipts
+              </CardTitle>
+              <CardDescription className="mt-1">
+                Review, approve, or reject payment receipts submitted by Bursars and Parents across all branches.
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="self-start sm:self-center font-mono text-xs px-3 py-1">
+              Super Admin Only
+            </Badge>
           </div>
-          <Badge variant="outline" className="self-start sm:self-center font-mono text-xs px-3 py-1">
-            Super Admin Only
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Tabs value={filter} onValueChange={(value) => setFilter(value as any)}>
-          <TabsList className="grid grid-cols-4 max-w-md mb-6">
-            <TabsTrigger value="pending">
-              Pending {allReceipts ? `(${allReceipts.filter(r => r.status === 'pending').length})` : ''}
-            </TabsTrigger>
-            <TabsTrigger value="approved">
-              Approved {allReceipts ? `(${allReceipts.filter(r => r.status === 'approved').length})` : ''}
-            </TabsTrigger>
-            <TabsTrigger value="rejected">
-              Rejected {allReceipts ? `(${allReceipts.filter(r => r.status === 'rejected').length})` : ''}
-            </TabsTrigger>
-            <TabsTrigger value="all">
-              All {allReceipts ? `(${allReceipts.length})` : ''}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={filter} onValueChange={(value) => setFilter(value as any)}>
+            <TabsList className="grid grid-cols-4 max-w-md mb-6">
+              <TabsTrigger value="pending">
+                Pending {allReceipts ? `(${allReceipts.filter(r => r.status === 'pending').length})` : ''}
+              </TabsTrigger>
+              <TabsTrigger value="approved">
+                Approved {allReceipts ? `(${allReceipts.filter(r => r.status === 'approved').length})` : ''}
+              </TabsTrigger>
+              <TabsTrigger value="rejected">
+                Rejected {allReceipts ? `(${allReceipts.filter(r => r.status === 'rejected').length})` : ''}
+              </TabsTrigger>
+              <TabsTrigger value="all">
+                All {allReceipts ? `(${allReceipts.length})` : ''}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-        <div className="rounded-md border overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead>Student</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Payment Purpose</TableHead>
-                <TableHead>Source / Method</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                [...Array(5)].map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={7}><Skeleton className="h-10 w-full" /></TableCell>
-                  </TableRow>
-                ))
-              ) : filteredReceipts && filteredReceipts.length > 0 ? (
-                filteredReceipts.map((t) => (
-                  <TableRow key={t.id} className="hover:bg-muted/30">
-                    <TableCell>
-                      <div className="font-semibold text-foreground">{t.studentName}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {t.admissionNo ? `Adm: ${t.admissionNo}` : ''} {t.branchId ? `• ${t.branchId}` : ''}
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-semibold text-emerald-700 whitespace-nowrap">
-                      ₦{(t.amount || 0).toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm font-medium">{t.reason}</div>
-                      {t.referenceNo && (
-                        <div className="text-xs text-muted-foreground font-mono">Ref: {t.referenceNo}</div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {t.uploadedByRole === 'burser' ? (
-                        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
-                          Bursar {t.uploadedBy ? `(${t.uploadedBy})` : ''}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
-                          Parent Submission
-                        </Badge>
-                      )}
-                      {t.paymentMethod && (
-                        <div className="text-xs text-muted-foreground mt-0.5">{t.paymentMethod}</div>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {t.uploadedAt?.seconds ? formatDistanceToNow(new Date(t.uploadedAt.seconds * 1000), { addSuffix: true }) : 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        {getStatusBadge(t.status)}
-                        {t.status === 'rejected' && t.rejectionReason && (
-                          <p className="text-xs text-destructive italic max-w-[150px] truncate" title={t.rejectionReason}>
-                            Reason: {t.rejectionReason}
-                          </p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      <div className="flex gap-2 justify-end items-center">
-                        {t.fileUrl ? (
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => setPreviewReceipt(t)}
-                            className="flex items-center gap-1 text-xs"
-                          >
-                            <Eye className="h-3.5 w-3.5" /> View Receipt
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground italic">No receipt file</span>
-                        )}
-
-                        {t.status === 'pending' && (
-                          <>
-                            <Button 
-                              size="sm" 
-                              onClick={() => handleApprove(t)} 
-                              className="bg-green-600 hover:bg-green-700 text-white text-xs" 
-                              disabled={isProcessing}
-                            >
-                              {isProcessing ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="mr-1 h-3.5 w-3.5" />}
-                              Approve
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="destructive" 
-                              onClick={() => openRejectDialog(t)} 
-                              disabled={isProcessing}
-                              className="text-xs"
-                            >
-                              <XCircle className="mr-1 h-3.5 w-3.5" />
-                              Reject
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                    No transactions found for this category.
-                  </TableCell>
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead>Student</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Payment Purpose</TableHead>
+                  <TableHead>Source / Method</TableHead>
+                  <TableHead>Submitted</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  [...Array(5)].map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell colSpan={7}><Skeleton className="h-10 w-full" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : filteredReceipts && filteredReceipts.length > 0 ? (
+                  filteredReceipts.map((t) => (
+                    <TableRow key={t.id} className="hover:bg-muted/30">
+                      <TableCell>
+                        <div 
+                          className="font-semibold text-foreground cursor-pointer hover:underline flex items-center gap-1.5"
+                          onClick={() => setPreviewReceipt(t)}
+                          title="Click to view receipt"
+                        >
+                          {t.studentName}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {t.admissionNo ? `Adm: ${t.admissionNo}` : ''} {t.branchId ? `• ${t.branchId}` : ''}
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-semibold text-emerald-700 whitespace-nowrap">
+                        ₦{(t.amount || 0).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm font-medium">{t.reason}</div>
+                        {t.referenceNo && (
+                          <div className="text-xs text-muted-foreground font-mono">Ref: {t.referenceNo}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {t.uploadedByRole === 'burser' ? (
+                          <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-xs">
+                            Bursar {t.uploadedBy ? `(${t.uploadedBy})` : ''}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+                            Parent Submission
+                          </Badge>
+                        )}
+                        {t.paymentMethod && (
+                          <div className="text-xs text-muted-foreground mt-0.5">{t.paymentMethod}</div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {t.uploadedAt?.seconds ? formatDistanceToNow(new Date(t.uploadedAt.seconds * 1000), { addSuffix: true }) : 'N/A'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          {getStatusBadge(t.status)}
+                          {t.status === 'rejected' && t.rejectionReason && (
+                            <p className="text-xs text-destructive italic max-w-[150px] truncate" title={t.rejectionReason}>
+                              Reason: {t.rejectionReason}
+                            </p>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex gap-1.5 justify-end items-center">
+                          {t.fileUrl ? (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => setPreviewReceipt(t)}
+                              className="flex items-center gap-1 text-xs"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> View Receipt
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">No receipt file</span>
+                          )}
+
+                          {t.status === 'pending' && (
+                            <>
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleApprove(t)} 
+                                className="bg-green-600 hover:bg-green-700 text-white text-xs" 
+                                disabled={isProcessing}
+                              >
+                                {isProcessing ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="mr-1 h-3.5 w-3.5" />}
+                                Approve
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="destructive" 
+                                onClick={() => openRejectDialog(t)} 
+                                disabled={isProcessing}
+                                className="text-xs"
+                              >
+                                <XCircle className="mr-1 h-3.5 w-3.5" />
+                                Reject
+                              </Button>
+                            </>
+                          )}
+
+                          {/* Super Admin Delete Receipt Option */}
+                          {user?.role === 'super_admin' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setReceiptToDelete(t)}
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              title="Delete Receipt Permanently"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                      No transactions found for this category.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Reject Dialog */}
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
@@ -361,51 +413,51 @@ export default function AdminTransactionsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Receipt Modal Preview */}
-      <Dialog open={!!previewReceipt} onOpenChange={(open) => !open && setPreviewReceipt(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ReceiptIcon className="h-5 w-5 text-primary" /> Receipt Details: {previewReceipt?.studentName}
-            </DialogTitle>
-            <DialogDescription>
-              Amount: ₦{previewReceipt?.amount?.toLocaleString()} • Purpose: {previewReceipt?.reason}
-            </DialogDescription>
-          </DialogHeader>
-          {previewReceipt?.fileUrl && (
-            <div className="space-y-4 my-2">
-              <div className="relative w-full h-[400px] border rounded-lg overflow-hidden bg-muted/20 flex items-center justify-center">
-                {previewReceipt.fileUrl.endsWith('.pdf') ? (
-                  <iframe 
-                    src={previewReceipt.fileUrl} 
-                    className="w-full h-full" 
-                    title="Receipt PDF" 
-                  />
-                ) : (
-                  <img 
-                    src={previewReceipt.fileUrl} 
-                    alt="Receipt Image" 
-                    className="object-contain w-full h-full"
-                  />
-                )}
+      {/* Full Interactive Receipt Modal (No 'Open Original in New Tab') */}
+      <ReceiptModal
+        receipt={previewReceipt}
+        open={!!previewReceipt}
+        onOpenChange={(open) => !open && setPreviewReceipt(null)}
+      />
+
+      {/* Delete Receipt Confirmation Dialog (Super Admin Exclusive) */}
+      <AlertDialog open={!!receiptToDelete} onOpenChange={(open) => !open && setReceiptToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" /> Delete Receipt Permanently?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <div>
+                  Are you sure you want to permanently delete the receipt record for <strong>{receiptToDelete?.studentName}</strong> (₦{receiptToDelete?.amount?.toLocaleString()})?
+                </div>
+                <div className="text-xs text-muted-foreground bg-muted p-2.5 rounded border">
+                  This will delete the receipt record from the system. This action is <strong>restricted to Super Admin</strong> and cannot be undone.
+                </div>
               </div>
-              <div className="flex justify-between items-center text-xs text-muted-foreground">
-                <span>Branch: {previewReceipt.branchId || 'Not specified'}</span>
-                <Button asChild variant="outline" size="sm">
-                  <a href={previewReceipt.fileUrl} target="_blank" rel="noopener noreferrer">
-                    Open Original in New Tab
-                  </a>
-                </Button>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPreviewReceipt(null)}>
-              Close
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteReceipt}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" /> Delete Permanently
+                </>
+              )}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
