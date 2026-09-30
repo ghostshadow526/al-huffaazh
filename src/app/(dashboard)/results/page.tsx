@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Loader2, Trash2, GraduationCap, PlusCircle, MinusCircle, Smartphone, Monitor, BookOpen } from 'lucide-react';
+import { Loader2, Trash2, GraduationCap, PlusCircle, MinusCircle, Smartphone, Monitor, BookOpen, Calendar, Sparkles } from 'lucide-react';
 import { Combobox } from '@/components/ui/combobox';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -172,36 +172,101 @@ function BulkResultEntryForm({
     return total / validSubjects.length;
   }, [watchedResults]);
 
+  // Extract and compute all available academic sessions/years
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<string>();
+    // Common & upcoming academic sessions
+    ['2026/2027', '2025/2026', '2024/2025', '2023/2024', '2022/2023'].forEach((y) => yearsSet.add(y));
+    terms.forEach((t) => {
+      const match = t.name?.match(/\b(20\d{2}\/20\d{2}|\d{4}\/\d{4})\b/);
+      if (match) yearsSet.add(match[1]);
+    });
+    return Array.from(yearsSet).sort().reverse();
+  }, [terms]);
+
+  // Flexible Year & Term states
+  const [selectedYear, setSelectedYear] = useState<string>('2024/2025');
+  const [customYear, setCustomYear] = useState<string>('');
+  const [selectedTermType, setSelectedTermType] = useState<string>('First Term');
+
+  // Resolved active academic year
+  const activeAcademicYear = useMemo(() => {
+    if (selectedYear === 'custom') {
+      return customYear.trim() || '2025/2026';
+    }
+    return selectedYear;
+  }, [selectedYear, customYear]);
+
+  // Computed full term name (e.g. "First Term 2025/2026")
+  const currentTermName = useMemo(() => {
+    return `${selectedTermType} ${activeAcademicYear}`.trim();
+  }, [selectedTermType, activeAcademicYear]);
+
+  // Predictable unique termId
+  const currentTermId = useMemo(() => {
+    // Check if an existing term matches this name
+    const existing = terms.find(
+      (t) => t.name?.toLowerCase().trim() === currentTermName.toLowerCase().trim()
+    );
+    if (existing) return existing.id;
+
+    // Slugify
+    const termSlug = selectedTermType.toLowerCase().replace(/\s+/g, '-');
+    const yearSlug = activeAcademicYear.replace(/[^a-zA-Z0-9]/g, '-');
+    return `${termSlug}-${yearSlug}`;
+  }, [terms, currentTermName, selectedTermType, activeAcademicYear]);
+
+  // Keep form's termId in sync
+  useEffect(() => {
+    if (currentTermId) {
+      form.setValue('termId', currentTermId, { shouldValidate: true });
+    }
+  }, [currentTermId, form]);
+
   const onSubmit = async (values: z.infer<typeof bulkResultsSchema>) => {
     if (!user || !firestore) return;
     setIsSubmitting(true);
 
     const student = students.find((s) => s.id === values.studentId);
-    const term = terms.find((t) => t.id === values.termId);
 
-    if (!student || !term) {
+    if (!student) {
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'Please select both a student and an academic term.',
+        title: 'Student Required',
+        description: 'Please search and select a student to record scores.',
       });
       setIsSubmitting(false);
       return;
     }
 
+    const termToSave = {
+      id: currentTermId,
+      name: currentTermName,
+    };
+
     try {
       const batch = writeBatch(firestore);
+
+      // Attempt to save term definition to Firestore terms collection
+      try {
+        const termRef = doc(firestore, 'terms', termToSave.id);
+        batch.set(termRef, { id: termToSave.id, name: termToSave.name }, { merge: true });
+      } catch (e) {
+        // Continue if terms doc collection is restricted
+      }
 
       values.results.forEach((result) => {
         if (result.subject_name?.trim()) {
           const sanitizedSubject = result.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-          const resultId = `${values.studentId}_${values.termId}_${sanitizedSubject}`;
+          const resultId = `${values.studentId}_${termToSave.id}_${sanitizedSubject}`;
           const resultRef = doc(firestore, 'results', resultId);
           batch.set(resultRef, {
             studentId: values.studentId,
             studentName: student.fullName,
-            termId: values.termId,
-            termName: term.name,
+            termId: termToSave.id,
+            termName: termToSave.name,
+            academicYear: activeAcademicYear,
+            termType: selectedTermType,
             branchId: student.branchId,
             subject_name: result.subject_name.trim(),
             ca_score: Number(result.ca_score) || 0,
@@ -220,11 +285,11 @@ function BulkResultEntryForm({
 
       toast({
         title: 'Scores Saved Successfully',
-        description: `Results recorded for ${student.fullName} (${term.name}).`,
+        description: `Results recorded for ${student.fullName} (${termToSave.name}).`,
       });
       form.reset({
         studentId: '',
-        termId: values.termId, // keep term for easy next entry
+        termId: currentTermId, // keep term for easy next entry
         results: [
           { subject_name: 'English Language', ca_score: 0, assignment_score: 0, exam_score: 0, total_score: 0, grade: 'F' },
           { subject_name: 'Mathematics', ca_score: 0, assignment_score: 0, exam_score: 0, total_score: 0, grade: 'F' },
@@ -233,11 +298,56 @@ function BulkResultEntryForm({
       });
       onResultAdded();
     } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Failed to save results',
-        description: error.message || 'An error occurred while saving results.',
-      });
+      // In case batch failed due to terms permission, fallback to saving results directly
+      try {
+        const fallbackBatch = writeBatch(firestore);
+        values.results.forEach((result) => {
+          if (result.subject_name?.trim()) {
+            const sanitizedSubject = result.subject_name.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
+            const resultId = `${values.studentId}_${termToSave.id}_${sanitizedSubject}`;
+            const resultRef = doc(firestore, 'results', resultId);
+            fallbackBatch.set(resultRef, {
+              studentId: values.studentId,
+              studentName: student.fullName,
+              termId: termToSave.id,
+              termName: termToSave.name,
+              academicYear: activeAcademicYear,
+              termType: selectedTermType,
+              branchId: student.branchId,
+              subject_name: result.subject_name.trim(),
+              ca_score: Number(result.ca_score) || 0,
+              assignment_score: Number(result.assignment_score) || 0,
+              exam_score: Number(result.exam_score) || 0,
+              total_score: Number(result.total_score) || 0,
+              grade: getGrade(Number(result.total_score) || 0),
+              position: values.position || '',
+              recordedBy: user.uid,
+              recordedAt: serverTimestamp(),
+            });
+          }
+        });
+        await fallbackBatch.commit();
+        toast({
+          title: 'Scores Saved Successfully',
+          description: `Results recorded for ${student.fullName} (${termToSave.name}).`,
+        });
+        form.reset({
+          studentId: '',
+          termId: currentTermId,
+          results: [
+            { subject_name: 'English Language', ca_score: 0, assignment_score: 0, exam_score: 0, total_score: 0, grade: 'F' },
+            { subject_name: 'Mathematics', ca_score: 0, assignment_score: 0, exam_score: 0, total_score: 0, grade: 'F' },
+          ],
+          position: '',
+        });
+        onResultAdded();
+      } catch (fallbackError: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Failed to save results',
+          description: fallbackError.message || error.message || 'An error occurred while saving results.',
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -247,23 +357,23 @@ function BulkResultEntryForm({
     value: s.id,
     label: `${s.fullName} (${s.admissionNo}) - ${s.class}`,
   }));
-  const termOptions = terms.map((t) => ({ value: t.id, label: t.name }));
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Step 1: Student and Term Selection */}
+        {/* Step 1: Student and Flexible Academic Term / Session Selection */}
         <Card className="border-2 shadow-sm rounded-2xl overflow-hidden">
           <CardHeader className="bg-muted/30 pb-4">
             <CardTitle className="text-xl sm:text-2xl font-bold flex items-center gap-2">
               <GraduationCap className="h-6 w-6 text-primary" />
-              1. Student &amp; Academic Term
+              1. Student &amp; Academic Session
             </CardTitle>
             <CardDescription className="text-sm sm:text-base">
-              Select the student and the term to record or update examination scores.
+              Select the student, choose the academic year (session), and pick the school term.
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
+          <CardContent className="p-4 sm:p-6 space-y-5">
+            {/* Student selection field */}
             <FormField
               control={form.control}
               name="studentId"
@@ -284,32 +394,104 @@ function BulkResultEntryForm({
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="termId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-sm sm:text-base font-bold text-foreground">
-                    Academic Term *
-                  </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger className="h-12 sm:h-13 text-base rounded-xl border-2 font-medium">
-                        <SelectValue placeholder="Choose Academic Term" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {termOptions.map((o) => (
-                        <SelectItem key={o.value} value={o.value} className="text-base py-2.5">
-                          {o.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+
+            {/* Academic Year and Term Selection */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 pt-1">
+              {/* Academic Year / Session Dropdown */}
+              <div className="space-y-2">
+                <Label className="text-sm sm:text-base font-bold text-foreground flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4 text-primary" /> Academic Year / Session *
+                  </span>
+                  {selectedYear !== 'custom' && (
+                    <span className="text-xs text-primary font-medium bg-primary/10 px-2 py-0.5 rounded">
+                      Editable
+                    </span>
+                  )}
+                </Label>
+                <Select
+                  value={selectedYear}
+                  onValueChange={(val) => {
+                    setSelectedYear(val);
+                    if (val !== 'custom') {
+                      setCustomYear('');
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-12 sm:h-13 text-base rounded-xl border-2 font-medium">
+                    <SelectValue placeholder="Select Academic Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableYears.map((yr) => (
+                      <SelectItem key={yr} value={yr} className="text-base py-2.5">
+                        {yr} Session
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="custom" className="text-base py-2.5 text-primary font-semibold">
+                      + Custom Academic Year...
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Custom Year Text Input when user chooses Custom */}
+                {selectedYear === 'custom' && (
+                  <div className="pt-2 animate-in fade-in-50 duration-200">
+                    <Input
+                      placeholder="e.g. 2027/2028 or 2028/2029"
+                      value={customYear}
+                      onChange={(e) => setCustomYear(e.target.value)}
+                      className="h-12 text-base rounded-xl border-2 font-medium"
+                      autoFocus
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Type the custom academic year format (e.g. 2027/2028).
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* School Term Selector */}
+              <div className="space-y-2">
+                <Label className="text-sm sm:text-base font-bold text-foreground flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-amber-500" /> School Term *
+                </Label>
+                <Select
+                  value={selectedTermType}
+                  onValueChange={(val) => setSelectedTermType(val)}
+                >
+                  <SelectTrigger className="h-12 sm:h-13 text-base rounded-xl border-2 font-medium">
+                    <SelectValue placeholder="Choose Term" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="First Term" className="text-base py-2.5 font-medium">
+                      First Term
+                    </SelectItem>
+                    <SelectItem value="Second Term" className="text-base py-2.5 font-medium">
+                      Second Term
+                    </SelectItem>
+                    <SelectItem value="Third Term" className="text-base py-2.5 font-medium">
+                      Third Term
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Select which term assessment or terminal examination this is for.
+                </p>
+              </div>
+            </div>
+
+            {/* Active Term Summary Card */}
+            <div className="rounded-xl border bg-muted/40 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-xs sm:text-sm text-muted-foreground">Active Term Record:</span>
+                <span className="font-bold text-primary bg-primary/10 px-3 py-1 rounded-lg border border-primary/20 text-sm sm:text-base">
+                  {currentTermName}
+                </span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                Subject scores and report cards will be recorded under this academic session.
+              </span>
+            </div>
           </CardContent>
         </Card>
 
@@ -994,18 +1176,25 @@ export default function ResultsPage() {
     if (!firestore || user?.role === 'parent') return;
 
     const seedTerms = async () => {
-      const termsRef = collection(firestore, 'terms');
-      const termSnap = await getDocs(termsRef);
-      if (termSnap.empty) {
-        const batch = writeBatch(firestore);
-        const termsData = [
-          { id: 't1-24-25', name: 'First Term 2024/2025' },
-          { id: 't2-24-25', name: 'Second Term 2024/2025' },
-          { id: 't3-24-25', name: 'Third Term 2024/2025' },
-        ];
-        termsData.forEach((t) => batch.set(doc(termsRef, t.id), t));
-        await batch.commit();
-        setDataVersion((v) => v + 1);
+      try {
+        const termsRef = collection(firestore, 'terms');
+        const termSnap = await getDocs(termsRef);
+        if (termSnap.empty) {
+          const batch = writeBatch(firestore);
+          const termsData = [
+            { id: 't1-24-25', name: 'First Term 2024/2025' },
+            { id: 't2-24-25', name: 'Second Term 2024/2025' },
+            { id: 't3-24-25', name: 'Third Term 2024/2025' },
+            { id: 't1-25-26', name: 'First Term 2025/2026' },
+            { id: 't2-25-26', name: 'Second Term 2025/2026' },
+            { id: 't3-25-26', name: 'Third Term 2025/2026' },
+          ];
+          termsData.forEach((t) => batch.set(doc(termsRef, t.id), t));
+          await batch.commit();
+          setDataVersion((v) => v + 1);
+        }
+      } catch (err) {
+        // Safe fallback if terms collection is already populated or read-only
       }
     };
     seedTerms();

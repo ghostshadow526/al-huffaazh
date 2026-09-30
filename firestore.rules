@@ -148,7 +148,8 @@ service cloud.firestore {
 
     match /terms/{termId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
+      allow create, update: if isSignedInUserActive() && (isSuperAdmin() || isBranchAdmin() || isTeacher());
+      allow delete: if isSuperAdmin();
     }
     
     match /results/{resultId} {
