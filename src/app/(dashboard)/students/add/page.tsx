@@ -5,16 +5,28 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { doc, setDoc, serverTimestamp, writeBatch, collection, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, writeBatch, collection, Timestamp, query, where, updateDoc } from 'firebase/firestore';
 import { initializeApp, getApps } from 'firebase/app';
 import { firebaseConfig } from '@/firebase/config';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/components/auth-provider';
+import { useAuth, User } from '@/components/auth-provider';
 import { useRouter } from 'next/navigation';
 import { IKContext, IKUpload } from 'imagekitio-react';
 import { generateUniqueQrCode } from '@/ai/flows/generate-unique-qr-code';
-import { useAuth as useFirebaseAuth, useFirestore } from '@/firebase';
+import { useAuth as useFirebaseAuth, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { SCHOOL_CLASSES, CLASS_CATEGORIES } from '@/lib/constants/classes';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Copy, GraduationCap, UserPlus, ShieldAlert, CheckCircle2 } from 'lucide-react';
 
 
 import {
@@ -44,7 +56,6 @@ import {
     SelectValue,
   } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Loader2, Copy } from 'lucide-react';
 import { DateOfBirthPicker } from '@/components/ui/dob-picker';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -92,17 +103,163 @@ export default function AddStudentPage() {
 
   const canAddStudent = user?.role === 'teacher' || user?.role === 'branch_admin' || user?.role === 'super_admin';
 
+  // Query teachers in this branch
+  const teachersQuery = useMemoFirebase(() => {
+    if (!db || !user?.branchId) return null;
+    if (user.role === 'super_admin') {
+      return query(collection(db, 'users'), where('role', '==', 'teacher'));
+    }
+    return query(
+      collection(db, 'users'),
+      where('role', '==', 'teacher'),
+      where('branchId', '==', user.branchId)
+    );
+  }, [db, user?.branchId, user?.role]);
+
+  const { data: branchTeachers } = useCollection<User>(teachersQuery);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       fullName: '',
-      class: '',
+      class: user?.role === 'teacher' ? (user.assignedClass || '') : '',
       admissionNo: '',
       photoUrl: '',
       parentEmail: '',
       address: '',
     },
   });
+
+  // Watch current class selection
+  const selectedClass = form.watch('class');
+  const assignedTeacherForClass = branchTeachers?.find(t => t.assignedClass === selectedClass);
+
+  // Automatically lock teacher's class
+  useEffect(() => {
+    if (user?.role === 'teacher' && user.assignedClass) {
+      form.setValue('class', user.assignedClass);
+    }
+  }, [user?.role, user?.assignedClass, form]);
+
+  // Modal state for assigning/registering teacher under a class
+  const [isTeacherModalOpen, setIsTeacherModalOpen] = useState(false);
+  const [teacherModalTab, setTeacherModalTab] = useState<'create' | 'assign'>('create');
+  const [targetClassForTeacher, setTargetClassForTeacher] = useState<string>('Basic 1 A');
+  const [selectedTeacherIdToAssign, setSelectedTeacherIdToAssign] = useState('');
+  const [isTeacherSubmitting, setIsTeacherSubmitting] = useState(false);
+
+  // New teacher form state
+  const [newTeacherFullName, setNewTeacherFullName] = useState('');
+  const [newTeacherEmail, setNewTeacherEmail] = useState('');
+  const [newTeacherPassword, setNewTeacherPassword] = useState('');
+
+  // Keep targetClassForTeacher synced when selectedClass changes
+  useEffect(() => {
+    if (selectedClass) {
+      setTargetClassForTeacher(selectedClass);
+    }
+  }, [selectedClass]);
+
+  const handleAssignExistingTeacher = async () => {
+    const classToAssign = targetClassForTeacher || selectedClass;
+    if (!db || !selectedTeacherIdToAssign || !classToAssign) {
+      toast({
+        variant: 'destructive',
+        title: 'Selection Required',
+        description: 'Please select both a teacher and a class to assign.',
+      });
+      return;
+    }
+    setIsTeacherSubmitting(true);
+    try {
+      await updateDoc(doc(db, 'users', selectedTeacherIdToAssign), {
+        assignedClass: classToAssign,
+      });
+      const t = branchTeachers?.find(t => (t as any).id === selectedTeacherIdToAssign || t.uid === selectedTeacherIdToAssign);
+      toast({
+        title: 'Class Teacher Assigned',
+        description: `${t?.fullName || 'Teacher'} has been assigned to ${classToAssign}.`,
+      });
+      form.setValue('class', classToAssign);
+      setIsTeacherModalOpen(false);
+      setSelectedTeacherIdToAssign('');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Assignment Failed',
+        description: error.message || 'Could not assign teacher.',
+      });
+    } finally {
+      setIsTeacherSubmitting(false);
+    }
+  };
+
+  const handleRegisterNewTeacher = async () => {
+    const classToAssign = targetClassForTeacher || selectedClass;
+    const branchToAssign = user?.branchId || '';
+    if (!db || !classToAssign) {
+      toast({
+        variant: 'destructive',
+        title: 'Class Required',
+        description: 'Please specify a class for this teacher.',
+      });
+      return;
+    }
+    if (!newTeacherFullName.trim() || !newTeacherEmail.trim() || !newTeacherPassword.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Missing Fields',
+        description: 'Please fill in full name, email, and temporary password (min 6 characters).',
+      });
+      return;
+    }
+    if (newTeacherPassword.length < 6) {
+      toast({
+        variant: 'destructive',
+        title: 'Weak Password',
+        description: 'Password must be at least 6 characters.',
+      });
+      return;
+    }
+    setIsTeacherSubmitting(true);
+    try {
+      const secondaryApp = getApps().find(a => a.name === 'SecondaryTeacher') || initializeApp(firebaseConfig, 'SecondaryTeacher');
+      const secondaryAuth = getAuth(secondaryApp);
+      const userCred = await createUserWithEmailAndPassword(secondaryAuth, newTeacherEmail.trim(), newTeacherPassword);
+      const newUid = userCred.user.uid;
+
+      await setDoc(doc(db, 'users', newUid), {
+        uid: newUid,
+        fullName: newTeacherFullName.trim(),
+        email: newTeacherEmail.trim(),
+        role: 'teacher',
+        branchId: branchToAssign,
+        assignedClass: classToAssign,
+        status: 'active',
+        createdAt: serverTimestamp(),
+      });
+
+      await signOut(secondaryAuth);
+
+      toast({
+        title: 'Teacher Registered & Assigned',
+        description: `${newTeacherFullName} registered as class teacher for ${classToAssign}.`,
+      });
+      form.setValue('class', classToAssign);
+      setIsTeacherModalOpen(false);
+      setNewTeacherFullName('');
+      setNewTeacherEmail('');
+      setNewTeacherPassword('');
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Registration Failed',
+        description: error.message || 'Could not register new teacher.',
+      });
+    } finally {
+      setIsTeacherSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if (photoUrl) {
@@ -147,6 +304,25 @@ export default function AddStudentPage() {
             description: 'You must be assigned to a branch to add students.',
         });
         return;
+    }
+
+    if (user.role === 'teacher') {
+      if (!user.assignedClass) {
+        toast({
+          variant: 'destructive',
+          title: 'Class Assignment Required',
+          description: 'You have not been assigned to a class yet. Please contact your Branch Administrator to assign your class before registering students.',
+        });
+        return;
+      }
+      if (values.class !== user.assignedClass) {
+        toast({
+          variant: 'destructive',
+          title: 'Unauthorized Class',
+          description: `You are only authorized to register students for your assigned class (${user.assignedClass}).`,
+        });
+        return;
+      }
     }
     setIsLoading(true);
 
@@ -291,6 +467,49 @@ export default function AddStudentPage() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardContent className="space-y-6">
+            {/* Top Action Banner for Branch Admin & Super Admin to Register / Assign Teacher under class */}
+            {(user?.role === 'branch_admin' || user?.role === 'super_admin') && (
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-3.5 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="p-2.5 rounded-lg bg-primary/10 text-primary shrink-0">
+                    <GraduationCap className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-foreground">Teacher Class Assignment</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Need to register a teacher or assign them to a class? When teachers log in, they are restricted to enrolling students strictly under their assigned class.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setTargetClassForTeacher(selectedClass || 'Basic 1 A');
+                    setIsTeacherModalOpen(true);
+                  }}
+                  className="w-full sm:w-auto shrink-0 font-semibold border-primary/30 text-primary hover:bg-primary/10"
+                >
+                  <UserPlus className="mr-1.5 h-4 w-4" />
+                  Register Teacher Under Class
+                </Button>
+              </div>
+            )}
+
+            {/* Warning if logged-in teacher has not been assigned a class */}
+            {user?.role === 'teacher' && !user.assignedClass && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3.5 sm:p-4 flex items-start gap-3">
+                <ShieldAlert className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <h4 className="text-sm font-bold text-destructive">Class Assignment Required</h4>
+                  <p className="text-destructive/90 mt-0.5">
+                    You have not been assigned to a class yet. As a teacher, you are only authorized to register students for your assigned class. Please contact your Branch Administrator to designate your class before enrolling students.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <FormField
               control={form.control}
               name="photoUrl"
@@ -398,12 +617,87 @@ export default function AddStudentPage() {
                     control={form.control}
                     name="class"
                     render={({ field }) => (
-                        <FormItem>
-                        <FormLabel className="text-sm font-semibold">Class / Grade *</FormLabel>
+                        <FormItem className="space-y-1.5">
+                        <FormLabel className="text-sm font-semibold flex items-center justify-between">
+                            <span>Class / Grade *</span>
+                            {user?.role === 'teacher' && user.assignedClass && (
+                                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-semibold">
+                                    Assigned Class
+                                </Badge>
+                            )}
+                        </FormLabel>
                         <FormControl>
-                            <Input placeholder="e.g. JSS 1, Primary 3, Tahfeezh" className="h-12 text-base rounded-lg border-2" {...field} />
+                            {user?.role === 'teacher' ? (
+                                <div className="space-y-1.5">
+                                    <Input
+                                        value={user.assignedClass || 'No Class Assigned'}
+                                        readOnly
+                                        className="h-12 text-base rounded-lg border-2 bg-muted font-bold text-foreground cursor-not-allowed"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        {user.assignedClass ? (
+                                            <>Restricted to your designated class: <strong>{user.assignedClass}</strong>. Teachers may only register students for their assigned class.</>
+                                        ) : (
+                                            <span className="text-destructive font-medium flex items-center gap-1 mt-1">
+                                                <ShieldAlert className="h-4 w-4 shrink-0" /> You have not been assigned to a class yet. Please ask your Branch Administrator to assign your class before adding students.
+                                            </span>
+                                        )}
+                                    </p>
+                                </div>
+                            ) : (
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                    <SelectTrigger className="h-12 text-base rounded-lg border-2 font-medium">
+                                        <SelectValue placeholder="Select class (e.g. JSS 1 A, Basic 1 B)" />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-72">
+                                        {CLASS_CATEGORIES.map((category) => (
+                                            <div key={category} className="py-1">
+                                                <div className="px-2 py-1 text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/60 rounded">
+                                                    {category}
+                                                </div>
+                                                {SCHOOL_CLASSES.filter((c) => c.category === category).map((cls) => (
+                                                    <SelectItem key={cls.id} value={cls.name} className="py-2 font-medium">
+                                                        {cls.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </div>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
                         </FormControl>
                         <FormMessage />
+
+                        {/* Option for Branch Admin / Super Admin to view & assign a teacher under this class */}
+                        {(user?.role === 'branch_admin' || user?.role === 'super_admin') && field.value && (
+                            <div className="rounded-lg border bg-muted/40 p-2.5 sm:p-3 mt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <GraduationCap className="h-4 w-4 text-primary shrink-0" />
+                                    <span className="text-muted-foreground font-medium">Class Teacher:</span>
+                                    {assignedTeacherForClass ? (
+                                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs font-semibold">
+                                            {assignedTeacherForClass.fullName} ({assignedTeacherForClass.email})
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 text-xs font-semibold">
+                                            No Teacher Assigned
+                                        </Badge>
+                                    )}
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        setIsTeacherModalOpen(true);
+                                    }}
+                                    className="h-7 text-xs font-semibold shrink-0"
+                                >
+                                    <UserPlus className="mr-1 h-3.5 w-3.5 text-primary" />
+                                    {assignedTeacherForClass ? 'Change / Reassign Teacher' : 'Register / Assign Teacher Under This Class'}
+                                </Button>
+                            </div>
+                        )}
                         </FormItem>
                     )}
                     />
@@ -445,7 +739,7 @@ export default function AddStudentPage() {
           </CardContent>
           <CardFooter className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
             <Button type="button" variant="outline" className="w-full sm:w-auto h-12 text-base" onClick={() => router.back()}>Cancel</Button>
-            <Button type="submit" disabled={isLoading} className="w-full sm:w-auto h-12 text-base font-semibold px-8">
+            <Button type="submit" disabled={isLoading || (user?.role === 'teacher' && !user.assignedClass)} className="w-full sm:w-auto h-12 text-base font-semibold px-8">
               {isLoading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
               Create Student Record
             </Button>
@@ -487,6 +781,147 @@ export default function AddStudentPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Teacher Registration & Assignment Modal for Branch Admins */}
+      <Dialog open={isTeacherModalOpen} onOpenChange={setIsTeacherModalOpen}>
+        <DialogContent className="max-w-md sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+              <GraduationCap className="h-5 w-5 text-primary" />
+              Assign or Register Teacher Under Class
+            </DialogTitle>
+            <DialogDescription>
+              Assign a dedicated teacher to a specific class. Teachers will only be allowed to register students and manage scores under their assigned class.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Class to Assign</Label>
+              <Select value={targetClassForTeacher} onValueChange={setTargetClassForTeacher}>
+                <SelectTrigger className="h-11 font-medium text-base">
+                  <SelectValue placeholder="Select class (e.g. Basic 1 A, JSS 1 B)" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {CLASS_CATEGORIES.map((category) => (
+                    <div key={category} className="py-1">
+                      <div className="px-2 py-1 text-[11px] font-bold text-muted-foreground uppercase tracking-wider bg-muted/60 rounded">
+                        {category}
+                      </div>
+                      {SCHOOL_CLASSES.filter((c) => c.category === category).map((cls) => (
+                        <SelectItem key={cls.id} value={cls.name} className="py-2 font-medium">
+                          {cls.name}
+                        </SelectItem>
+                      ))}
+                    </div>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Tabs value={teacherModalTab} onValueChange={(v) => setTeacherModalTab(v as 'create' | 'assign')}>
+              <TabsList className="grid grid-cols-2 w-full">
+                <TabsTrigger value="create">Register New Teacher</TabsTrigger>
+                <TabsTrigger value="assign">Assign Existing Teacher</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="create" className="space-y-3.5 pt-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Teacher's Full Name *</Label>
+                  <Input
+                    placeholder="e.g. Ustadh Musa Ibrahim"
+                    value={newTeacherFullName}
+                    onChange={(e) => setNewTeacherFullName(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Teacher's Email *</Label>
+                  <Input
+                    type="email"
+                    placeholder="musa.teacher@example.com"
+                    value={newTeacherEmail}
+                    onChange={(e) => setNewTeacherEmail(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Temporary Password *</Label>
+                  <Input
+                    type="password"
+                    placeholder="At least 6 characters"
+                    value={newTeacherPassword}
+                    onChange={(e) => setNewTeacherPassword(e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+                <div className="rounded-md bg-muted/60 p-2.5 text-xs text-muted-foreground">
+                  Creates an active teacher account restricted to class <strong>{targetClassForTeacher}</strong> in branch <strong>{user?.branchId || 'Current Branch'}</strong>.
+                </div>
+                <Button
+                  type="button"
+                  className="w-full mt-2 font-semibold h-11"
+                  disabled={isTeacherSubmitting || !newTeacherFullName.trim() || !newTeacherEmail.trim() || newTeacherPassword.length < 6}
+                  onClick={handleRegisterNewTeacher}
+                >
+                  {isTeacherSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Registering Teacher...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="mr-2 h-4 w-4" /> Register & Assign to {targetClassForTeacher}
+                    </>
+                  )}
+                </Button>
+              </TabsContent>
+
+              <TabsContent value="assign" className="space-y-3.5 pt-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Select Branch Teacher *</Label>
+                  {(!branchTeachers || branchTeachers.length === 0) ? (
+                    <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+                      No registered teachers found in this branch yet. Switch to the "Register New Teacher" tab to create one.
+                    </div>
+                  ) : (
+                    <Select value={selectedTeacherIdToAssign} onValueChange={setSelectedTeacherIdToAssign}>
+                      <SelectTrigger className="h-11 font-medium">
+                        <SelectValue placeholder="Choose a teacher to assign" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {branchTeachers.map((t) => (
+                          <SelectItem key={t.uid || (t as any).id} value={t.uid || (t as any).id}>
+                            {t.fullName || t.email} {t.assignedClass ? `(Currently: ${t.assignedClass})` : '(Unassigned)'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <div className="rounded-md bg-muted/60 p-2.5 text-xs text-muted-foreground">
+                  Assigns the selected teacher to <strong>{targetClassForTeacher}</strong>.
+                </div>
+                <Button
+                  type="button"
+                  className="w-full mt-2 font-semibold h-11"
+                  disabled={isTeacherSubmitting || !selectedTeacherIdToAssign || !branchTeachers?.length}
+                  onClick={handleAssignExistingTeacher}
+                >
+                  {isTeacherSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Updating Assignment...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" /> Assign Teacher to {targetClassForTeacher}
+                    </>
+                  )}
+                </Button>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </DialogContent>
+      </Dialog>
       </>
   );
 }

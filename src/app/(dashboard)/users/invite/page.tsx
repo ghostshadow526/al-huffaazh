@@ -13,8 +13,9 @@ import { doc, setDoc, collection, getDocs, writeBatch } from 'firebase/firestore
 import { useToast } from '@/hooks/use-toast';
 import { useCollection, useMemoFirebase, useAuth as useFirebaseAuth, useFirestore } from '@/firebase';
 import { useAuth } from '@/components/auth-provider';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { seedBranchesIfNeeded } from "@/lib/seedBranches";
+import { SCHOOL_CLASSES, CLASS_CATEGORIES } from "@/lib/constants/classes";
 
 
 import {
@@ -50,6 +51,7 @@ const formSchema = z.object({
   password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
   role: z.enum(['branch_admin', 'teacher', 'parent', 'burser', 'daarul_iftaa']),
   branchId: z.string().optional(),
+  assignedClass: z.string().optional(),
 });
 
 const ROLE_LABELS: Record<string, string> = {
@@ -89,6 +91,9 @@ export default function InviteUserPage() {
   const db = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const roleParam = searchParams.get('role');
+  const classParam = searchParams.get('class');
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSeeding, setIsSeeding] = useState(true);
@@ -181,6 +186,7 @@ export default function InviteUserPage() {
       password: '',
       role: 'branch_admin',
       branchId: '',
+      assignedClass: '',
     },
   });
 
@@ -190,17 +196,32 @@ export default function InviteUserPage() {
   });
 
   useEffect(() => {
+    const defaultRole = (roleParam === 'teacher' || roleParam === 'parent' || roleParam === 'burser' || roleParam === 'branch_admin' || roleParam === 'daarul_iftaa')
+      ? roleParam
+      : (currentUser?.role === 'branch_admin' ? 'teacher' : 'branch_admin');
+
     form.reset({
       fullName: '',
       email: '',
       password: '',
-      role: currentUser?.role === 'branch_admin' ? 'teacher' : 'branch_admin',
+      role: defaultRole,
       branchId: currentUser?.role === 'branch_admin' ? (currentUser.branchId || '') : '',
+      assignedClass: classParam || '',
     });
-  }, [currentUser, form]);
+  }, [currentUser, roleParam, classParam, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!db) return;
+
+    if (values.role === 'teacher' && !values.assignedClass) {
+      toast({
+        variant: 'destructive',
+        title: 'Class Assignment Required',
+        description: 'Please select an assigned class for this teacher. Teachers must be assigned to a specific class.',
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     const branchToAssign = currentUser?.role === 'branch_admin'
@@ -220,6 +241,7 @@ export default function InviteUserPage() {
         email: values.email,
         role: values.role,
         branchId: branchToAssign,
+        assignedClass: values.role === 'teacher' ? (values.assignedClass || '') : '',
         status: 'active', // Set default status to active
       });
 
@@ -316,6 +338,45 @@ export default function InviteUserPage() {
                 </FormItem>
               )}
             />
+            {selectedRole === 'teacher' && (
+              <FormField
+                control={form.control}
+                name="assignedClass"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center justify-between">
+                      <span className="font-semibold text-foreground">Assigned Class / Grade *</span>
+                      <span className="text-xs text-primary font-medium">Class Teacher Assignment</span>
+                    </FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                      <FormControl>
+                        <SelectTrigger className="border-2 font-medium">
+                          <SelectValue placeholder="Select assigned class (e.g. JSS 1 A, Basic 1 B)" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-72">
+                        {CLASS_CATEGORIES.map((category) => (
+                          <div key={category} className="py-1">
+                            <div className="px-2 py-1 text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/60 rounded">
+                              {category}
+                            </div>
+                            {SCHOOL_CLASSES.filter((c) => c.category === category).map((cls) => (
+                              <SelectItem key={cls.id} value={cls.name} className="py-2">
+                                {cls.name}
+                              </SelectItem>
+                            ))}
+                          </div>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      This teacher will only be permitted to register students, take attendance, and manage scores under this specific class.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             {currentUser?.role === 'branch_admin' ? (
               <div className="space-y-2">
                 <FormLabel>Branch</FormLabel>

@@ -353,7 +353,17 @@ function BulkResultEntryForm({
     }
   };
 
-  const studentOptions = students.map((s) => ({
+  const relevantStudents = useMemo(() => {
+    if (user?.role === 'teacher' && user.assignedClass) {
+      const classStudents = students.filter(
+        (s) => s.class?.toLowerCase().trim() === user.assignedClass?.toLowerCase().trim()
+      );
+      if (classStudents.length > 0) return classStudents;
+    }
+    return students;
+  }, [students, user]);
+
+  const studentOptions = relevantStudents.map((s) => ({
     value: s.id,
     label: `${s.fullName} (${s.admissionNo}) - ${s.class}`,
   }));

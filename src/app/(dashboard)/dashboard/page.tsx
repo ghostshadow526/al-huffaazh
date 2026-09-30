@@ -84,6 +84,14 @@ const allQuickActions: QuickActionItem[] = [
     iconBg: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
   },
   {
+    href: "/users/invite?role=teacher",
+    label: "Register Teacher Under Class",
+    description: "Assign a teacher to a specific class for student registration and scores.",
+    icon: GraduationCap,
+    roles: ["branch_admin", "super_admin"],
+    iconBg: "bg-teal-500/10 text-teal-600 dark:text-teal-400",
+  },
+  {
     href: "/users",
     label: "Manage Staff & Users",
     description: "Oversee staff accounts, permissions, and branch assignments.",

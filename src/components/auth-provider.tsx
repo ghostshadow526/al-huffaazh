@@ -15,6 +15,7 @@ export interface User extends FirebaseUser {
   branchId?: string;
   fullName?: string;
   status?: 'active' | 'disabled';
+  assignedClass?: string;
 }
 
 interface AuthContextType {

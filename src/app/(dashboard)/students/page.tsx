@@ -9,7 +9,7 @@ import { useAuth } from '@/components/auth-provider';
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 import type { Student } from './student-table';
 
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, GraduationCap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StudentTable } from './student-table';
@@ -33,26 +33,33 @@ export default function StudentsPage() {
 
   const { data: students, isLoading } = useCollection<Student>(studentsQuery);
   const canAddStudent = user?.role === 'teacher' || user?.role === 'branch_admin' || user?.role === 'super_admin';
-
+  const canManageTeachers = user?.role === 'branch_admin' || user?.role === 'super_admin';
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between space-y-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Students</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Students</h2>
+          <p className="text-muted-foreground text-sm">
             A list of all students in your view.
           </p>
         </div>
-        {canAddStudent && (
-             <div className="flex items-center space-x-2">
-                <Button asChild>
-                    <Link href="/students/add">
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Student
-                    </Link>
-                </Button>
-            </div>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {canManageTeachers && (
+            <Button variant="outline" asChild>
+              <Link href="/users/invite?role=teacher">
+                <GraduationCap className="mr-2 h-4 w-4 text-primary" /> Register Teacher Under Class
+              </Link>
+            </Button>
+          )}
+          {canAddStudent && (
+            <Button asChild>
+              <Link href="/students/add">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Student
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
       <Card>
         <CardHeader>

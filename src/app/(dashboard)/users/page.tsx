@@ -115,7 +115,7 @@ export default function UsersPage() {
                     <CardDescription>A list of all teachers in your view.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <UserTable columns={['fullName', 'email', 'branchId', 'status', 'actions']} data={teachers} isLoading={isLoading} />
+                    <UserTable columns={['fullName', 'email', 'branchId', 'assignedClass', 'status', 'actions']} data={teachers} isLoading={isLoading} />
                 </CardContent>
             </Card>
         </TabsContent>
