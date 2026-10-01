@@ -83,7 +83,7 @@ export function StudentTable({ data, columns, isLoading }: StudentTableProps) {
 
     const canDelete =
       currentUser.role === 'super_admin' ||
-      (['branch_admin', 'teacher'].includes(currentUser.role || '') &&
+      (currentUser.role === 'branch_admin' &&
         (!currentUser.branchId || currentUser.branchId === student.branchId));
 
     if (!canDelete) {
@@ -130,7 +130,7 @@ export function StudentTable({ data, columns, isLoading }: StudentTableProps) {
     if (column === 'actions') {
       const canDelete =
         currentUser?.role === 'super_admin' ||
-        (['branch_admin', 'teacher'].includes(currentUser?.role || '') &&
+        (currentUser?.role === 'branch_admin' &&
           (!currentUser?.branchId || currentUser?.branchId === item.branchId));
 
       return (

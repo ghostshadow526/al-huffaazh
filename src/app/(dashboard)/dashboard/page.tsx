@@ -80,7 +80,7 @@ const allQuickActions: QuickActionItem[] = [
     label: "Enroll New Student",
     description: "Register a new student and generate parent login credentials.",
     icon: UserPlus,
-    roles: ["teacher", "branch_admin", "super_admin"],
+    roles: ["branch_admin", "super_admin"],
     iconBg: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
   },
   {

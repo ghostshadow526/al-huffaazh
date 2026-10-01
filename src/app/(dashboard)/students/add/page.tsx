@@ -101,7 +101,7 @@ export default function AddStudentPage() {
   const [showCredentials, setShowCredentials] = useState(false);
   const [generatedCredentials, setGeneratedCredentials] = useState({ email: '', password: '' });
 
-  const canAddStudent = user?.role === 'teacher' || user?.role === 'branch_admin' || user?.role === 'super_admin';
+  const canAddStudent = user?.role === 'branch_admin' || user?.role === 'super_admin';
 
   // Query teachers in this branch
   const teachersQuery = useMemoFirebase(() => {
@@ -306,23 +306,13 @@ export default function AddStudentPage() {
         return;
     }
 
-    if (user.role === 'teacher') {
-      if (!user.assignedClass) {
-        toast({
-          variant: 'destructive',
-          title: 'Class Assignment Required',
-          description: 'You have not been assigned to a class yet. Please contact your Branch Administrator to assign your class before registering students.',
-        });
-        return;
-      }
-      if (values.class !== user.assignedClass) {
-        toast({
-          variant: 'destructive',
-          title: 'Unauthorized Class',
-          description: `You are only authorized to register students for your assigned class (${user.assignedClass}).`,
-        });
-        return;
-      }
+    if (user.role === 'teacher' || (user.role !== 'branch_admin' && user.role !== 'super_admin')) {
+      toast({
+        variant: 'destructive',
+        title: 'Unauthorized Action',
+        description: 'Teachers are not permitted to register students. Adding students is reserved exclusively for Branch Administrators and Super Administrators.',
+      });
+      return;
     }
     setIsLoading(true);
 
@@ -442,13 +432,30 @@ export default function AddStudentPage() {
 
   if (!canAddStudent) {
     return (
-        <Card className="max-w-3xl mx-auto">
+        <Card className="max-w-2xl mx-auto shadow-sm">
             <CardHeader>
-                <CardTitle>Access Denied</CardTitle>
+                <CardTitle className="text-destructive flex items-center gap-2">
+                  <ShieldAlert className="h-5 w-5" /> Access Restricted
+                </CardTitle>
             </CardHeader>
-            <CardContent>
-                <p>You do not have permission to add new students. Please contact an administrator.</p>
-                <Button onClick={() => router.back()} className="mt-4">Go Back</Button>
+            <CardContent className="space-y-4">
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  Student registration is restricted. Only <strong>Branch Administrators</strong> and <strong>Super Administrators</strong> are authorized to enroll new students and generate parent accounts.
+                </p>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  As a teacher, you have full access to view class rosters, mark daily attendance via QR code or manual roll call, and submit examination scores.
+                </p>
+                <div className="flex flex-wrap gap-2.5 pt-2">
+                  <Button onClick={() => router.push('/manage-students')} variant="outline">
+                    View Student Records
+                  </Button>
+                  <Button onClick={() => router.push('/attendance')}>
+                    Take Attendance
+                  </Button>
+                  <Button onClick={() => router.push('/results')} variant="secondary">
+                    Enter Results
+                  </Button>
+                </div>
             </CardContent>
         </Card>
     );
@@ -477,7 +484,7 @@ export default function AddStudentPage() {
                   <div>
                     <h4 className="text-sm font-bold text-foreground">Teacher Class Assignment</h4>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Need to register a teacher or assign them to a class? When teachers log in, they are restricted to enrolling students strictly under their assigned class.
+                      Need to register a teacher or assign them to a class? When teachers log in, their results and attendance are organized around their designated class.
                     </p>
                   </div>
                 </div>
@@ -494,19 +501,6 @@ export default function AddStudentPage() {
                   <UserPlus className="mr-1.5 h-4 w-4" />
                   Register Teacher Under Class
                 </Button>
-              </div>
-            )}
-
-            {/* Warning if logged-in teacher has not been assigned a class */}
-            {user?.role === 'teacher' && !user.assignedClass && (
-              <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3.5 sm:p-4 flex items-start gap-3">
-                <ShieldAlert className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                <div className="text-xs">
-                  <h4 className="text-sm font-bold text-destructive">Class Assignment Required</h4>
-                  <p className="text-destructive/90 mt-0.5">
-                    You have not been assigned to a class yet. As a teacher, you are only authorized to register students for your assigned class. Please contact your Branch Administrator to designate your class before enrolling students.
-                  </p>
-                </div>
               </div>
             )}
 
@@ -620,51 +614,27 @@ export default function AddStudentPage() {
                         <FormItem className="space-y-1.5">
                         <FormLabel className="text-sm font-semibold flex items-center justify-between">
                             <span>Class / Grade *</span>
-                            {user?.role === 'teacher' && user.assignedClass && (
-                                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs font-semibold">
-                                    Assigned Class
-                                </Badge>
-                            )}
                         </FormLabel>
                         <FormControl>
-                            {user?.role === 'teacher' ? (
-                                <div className="space-y-1.5">
-                                    <Input
-                                        value={user.assignedClass || 'No Class Assigned'}
-                                        readOnly
-                                        className="h-12 text-base rounded-lg border-2 bg-muted font-bold text-foreground cursor-not-allowed"
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                        {user.assignedClass ? (
-                                            <>Restricted to your designated class: <strong>{user.assignedClass}</strong>. Teachers may only register students for their assigned class.</>
-                                        ) : (
-                                            <span className="text-destructive font-medium flex items-center gap-1 mt-1">
-                                                <ShieldAlert className="h-4 w-4 shrink-0" /> You have not been assigned to a class yet. Please ask your Branch Administrator to assign your class before adding students.
-                                            </span>
-                                        )}
-                                    </p>
-                                </div>
-                            ) : (
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                    <SelectTrigger className="h-12 text-base rounded-lg border-2 font-medium">
-                                        <SelectValue placeholder="Select class (e.g. JSS 1 A, Basic 1 B)" />
-                                    </SelectTrigger>
-                                    <SelectContent className="max-h-72">
-                                        {CLASS_CATEGORIES.map((category) => (
-                                            <div key={category} className="py-1">
-                                                <div className="px-2 py-1 text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/60 rounded">
-                                                    {category}
-                                                </div>
-                                                {SCHOOL_CLASSES.filter((c) => c.category === category).map((cls) => (
-                                                    <SelectItem key={cls.id} value={cls.name} className="py-2 font-medium">
-                                                        {cls.name}
-                                                    </SelectItem>
-                                                ))}
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <SelectTrigger className="h-12 text-base rounded-lg border-2 font-medium">
+                                    <SelectValue placeholder="Select class (e.g. JSS 1 A, Basic 1 B)" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-72">
+                                    {CLASS_CATEGORIES.map((category) => (
+                                        <div key={category} className="py-1">
+                                            <div className="px-2 py-1 text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/60 rounded">
+                                                {category}
                                             </div>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            )}
+                                            {SCHOOL_CLASSES.filter((c) => c.category === category).map((cls) => (
+                                                <SelectItem key={cls.id} value={cls.name} className="py-2 font-medium">
+                                                    {cls.name}
+                                                </SelectItem>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </FormControl>
                         <FormMessage />
 
@@ -689,6 +659,7 @@ export default function AddStudentPage() {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => {
+                                        setTargetClassForTeacher(field.value);
                                         setIsTeacherModalOpen(true);
                                     }}
                                     className="h-7 text-xs font-semibold shrink-0"
@@ -739,7 +710,7 @@ export default function AddStudentPage() {
           </CardContent>
           <CardFooter className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
             <Button type="button" variant="outline" className="w-full sm:w-auto h-12 text-base" onClick={() => router.back()}>Cancel</Button>
-            <Button type="submit" disabled={isLoading || (user?.role === 'teacher' && !user.assignedClass)} className="w-full sm:w-auto h-12 text-base font-semibold px-8">
+            <Button type="submit" disabled={isLoading} className="w-full sm:w-auto h-12 text-base font-semibold px-8">
               {isLoading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
               Create Student Record
             </Button>

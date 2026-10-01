@@ -113,9 +113,9 @@ service cloud.firestore {
 
     match /students/{studentId} {
       allow get, list: if isSignedInUserActive() && (isSuperAdmin() || isBurser() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && getUserData(request.auth.uid).branchId == get(/databases/$(database)/documents/students/$(studentId)).data.branchId) || isParentOfStudent(studentId));
-      allow create: if isSuperAdmin() || (isBranchAdmin() && request.resource.data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && request.resource.data.branchId == getUserData(request.auth.uid).branchId);
+      allow create: if isSuperAdmin() || (isBranchAdmin() && request.resource.data.branchId == getUserData(request.auth.uid).branchId);
       allow update: if isSuperAdmin() || (isBranchAdmin() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && get(/databases/$(database)/documents/students/$(studentId)).data.branchId == getUserData(request.auth.uid).branchId);
-      allow delete: if isSuperAdmin() || (isBranchAdmin() && resource.data.branchId == getUserData(request.auth.uid).branchId) || (isTeacher() && resource.data.branchId == getUserData(request.auth.uid).branchId);
+      allow delete: if isSuperAdmin() || (isBranchAdmin() && resource.data.branchId == getUserData(request.auth.uid).branchId);
     }
 
     match /receipts/{receiptId} {

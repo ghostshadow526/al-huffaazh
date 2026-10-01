@@ -101,7 +101,7 @@ export default function StudentDetailPage() {
 
     const canDelete =
       currentUser.role === 'super_admin' ||
-      (['branch_admin', 'teacher'].includes(currentUser.role || '') &&
+      (currentUser.role === 'branch_admin' &&
         (!currentUser.branchId || currentUser.branchId === student.branchId));
 
     if (!canDelete) {
@@ -163,7 +163,7 @@ export default function StudentDetailPage() {
 
   const canDeleteStudent =
     currentUser?.role === 'super_admin' ||
-    (['branch_admin', 'teacher'].includes(currentUser?.role || '') &&
+    (currentUser?.role === 'branch_admin' &&
       (!currentUser?.branchId || currentUser?.branchId === student.branchId));
 
   return (

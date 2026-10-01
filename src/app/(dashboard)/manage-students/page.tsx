@@ -31,7 +31,7 @@ export default function ManageStudentsPage() {
   }, [user?.uid, user?.role, user?.branchId, firestore]);
 
   const { data: students, isLoading } = useCollection<Student>(studentsQuery);
-  const canAddStudent = user?.role === 'teacher' || user?.role === 'branch_admin' || user?.role === 'super_admin';
+  const canAddStudent = user?.role === 'branch_admin' || user?.role === 'super_admin';
   const canManageTeachers = user?.role === 'branch_admin' || user?.role === 'super_admin';
 
   return (
